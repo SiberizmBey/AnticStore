@@ -7,11 +7,16 @@ import { StoreView } from './views/StoreView';
 import { InstalledView } from './views/InstalledView';
 import { SettingsView } from './views/SettingsView';
 import { AppDetailModal } from './components/AppDetailModal';
+import { useStore } from './context/StoreContext';
 import type { StoreApp } from './types';
 
 function AnticStoreShell() {
   const [currentTab, setCurrentTab] = useState<NavTab>('store');
   const [selectedApp, setSelectedApp] = useState<StoreApp | null>(null);
+  const { apps } = useStore();
+  const currentSelectedApp = selectedApp
+    ? apps.find((app) => app.id === selectedApp.id) || selectedApp
+    : null;
 
   return (
     <div className="min-h-screen bg-canvas text-primary flex flex-col transition-colors duration-200">
@@ -50,9 +55,9 @@ function AnticStoreShell() {
       </main>
 
       <AnimatePresence>
-        {selectedApp && (
+        {currentSelectedApp && (
           <AppDetailModal
-            app={selectedApp}
+            app={currentSelectedApp}
             onClose={() => setSelectedApp(null)}
           />
         )}
