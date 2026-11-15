@@ -181,8 +181,8 @@ async function createServer() {
     }
 
     const remoteCandidates = [
-      'https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/catalog.json',
       'https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/catalog.json',
+      'https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/catalog.json',
       'https://raw.githubusercontent.com/SiberizmBey/AnticStore/master/catalog.json',
     ];
 

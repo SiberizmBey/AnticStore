@@ -34,6 +34,9 @@ export interface AnticStoreDesktopAPI {
 
   getPlatformInfo: () => Promise<PlatformInfo>;
   fetchJson: <T = unknown>(url: string) => Promise<T>;
+  getGitHubTokenStatus: () => Promise<{ configured: boolean; secureStorageAvailable: boolean }>;
+  saveGitHubToken: (token: string) => Promise<void>;
+  clearGitHubToken: () => Promise<void>;
   getInstalledApps: (
     catalogApps?: Array<{ appId: string; name: string }>
   ) => Promise<InstalledAppRecord[]>;

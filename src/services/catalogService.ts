@@ -308,8 +308,8 @@ async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
   const desktop = window.anticStoreDesktop!;
   const ts = Date.now();
   const candidates = [
-    `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/catalog.json?t=${ts}`,
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/public/catalog.json?t=${ts}`,
+    `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/catalog.json?t=${ts}`,
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/master/catalog.json?t=${ts}`,
   ];
 

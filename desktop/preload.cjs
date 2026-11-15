@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('anticStoreDesktop', {
 
   getPlatformInfo: () => ipcRenderer.invoke('store:platform-info'),
   fetchJson: (url) => ipcRenderer.invoke('store:fetch-json', url),
+  getGitHubTokenStatus: () => ipcRenderer.invoke('store:get-github-token-status'),
+  saveGitHubToken: (token) => ipcRenderer.invoke('store:save-github-token', token),
+  clearGitHubToken: () => ipcRenderer.invoke('store:clear-github-token'),
   getInstalledApps: (catalogApps) => ipcRenderer.invoke('store:get-installed', catalogApps),
   installApp: (req) => ipcRenderer.invoke('store:install-app', req),
   cancelDownload: (appId) => ipcRenderer.invoke('store:cancel-download', appId),

@@ -33,6 +33,8 @@ interface StoreContextType {
   installedMap: Record<string, InstalledAppRecord>;
   tasks: Record<string, AppTaskProgress>;
   appErrors: Record<string, string>;
+  githubTokenConfigured: boolean;
+  githubTokenStorageAvailable: boolean;
   syncError: string | null;
   isSyncing: boolean;
   lastSyncedAt: string | null;
@@ -41,6 +43,8 @@ interface StoreContextType {
   installedApps: StoreApp[];
   setInstallMode: (mode: InstallMode) => void;
   syncCatalog: () => Promise<void>;
+  saveGitHubToken: (token: string) => Promise<void>;
+  clearGitHubToken: () => Promise<void>;
   installApp: (
     app: StoreApp,
     options?: { release?: StoreRelease; asset?: StoreAsset; mode?: 'install' | 'update' | 'reinstall' }
@@ -78,6 +82,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
   const [tasks, setTasks] = useState<Record<string, AppTaskProgress>>({});
   const [appErrors, setAppErrors] = useState<Record<string, string>>({});
+  const [githubTokenConfigured, setGitHubTokenConfigured] = useState(false);
+  const [githubTokenStorageAvailable, setGitHubTokenStorageAvailable] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -88,6 +94,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const webAbortControllers = useRef<Map<string, AbortController>>(new Map());
   const catalogSyncInProgress = useRef(false);
+  const catalogSyncRequested = useRef(false);
 
   const setInstallMode = (mode: InstallMode) => {
     setInstallModeState(mode);
@@ -121,6 +128,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!desktop) return;
 
     desktop.getPlatformInfo().then(setPlatformInfo).catch(console.error);
+    desktop
+      .getGitHubTokenStatus()
+      .then(({ configured, secureStorageAvailable }) => {
+        setGitHubTokenConfigured(configured);
+        setGitHubTokenStorageAvailable(secureStorageAvailable);
+      })
+      .catch(console.error);
     void refreshInstalled();
 
     const unsubscribe = desktop.onTaskProgress((progress) => {
@@ -134,19 +148,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [refreshInstalled]);
 
   const syncCatalog = useCallback(async () => {
-    if (catalogSyncInProgress.current) return;
+    if (catalogSyncInProgress.current) {
+      catalogSyncRequested.current = true;
+      return;
+    }
     catalogSyncInProgress.current = true;
-    setIsSyncing(true);
-    setSyncError(null);
 
     try {
-      const { apps: syncedApps, source } = await syncOfficialCatalog();
-      setApps(syncedApps);
-      setOfficialSource(source);
-      setLastSyncedAt(new Date().toISOString());
-      await refreshInstalled(syncedApps);
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : 'Katalog senkronizasyonu başarısız.');
+      do {
+        catalogSyncRequested.current = false;
+        setIsSyncing(true);
+        setSyncError(null);
+
+        try {
+          const { apps: syncedApps, source } = await syncOfficialCatalog();
+          setApps(syncedApps);
+          setOfficialSource(source);
+          setLastSyncedAt(new Date().toISOString());
+          await refreshInstalled(syncedApps);
+        } catch (err) {
+          setSyncError(err instanceof Error ? err.message : 'Katalog senkronizasyonu başarısız.');
+        }
+      } while (catalogSyncRequested.current);
     } finally {
       catalogSyncInProgress.current = false;
       setIsSyncing(false);
@@ -161,6 +184,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }, 15 * 60 * 1000);
     return () => window.clearInterval(intervalId);
+  }, [syncCatalog]);
+
+  const saveGitHubToken = useCallback(
+    async (token: string) => {
+      const desktop = window.anticStoreDesktop;
+      if (!desktop) {
+        throw new Error('GitHub anahtarı yalnızca AnticStore masaüstü uygulamasında güvenle saklanabilir.');
+      }
+      await desktop.saveGitHubToken(token);
+      setGitHubTokenConfigured(true);
+      await syncCatalog();
+    },
+    [syncCatalog]
+  );
+
+  const clearGitHubToken = useCallback(async () => {
+    const desktop = window.anticStoreDesktop;
+    if (!desktop) {
+      throw new Error('GitHub anahtarı yalnızca AnticStore masaüstü uygulamasında yönetilebilir.');
+    }
+    await desktop.clearGitHubToken();
+    const status = await desktop.getGitHubTokenStatus();
+    setGitHubTokenConfigured(status.configured);
+    await syncCatalog();
   }, [syncCatalog]);
 
   const clearAppError = (appId: string) => {
@@ -446,6 +493,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         installedMap,
         tasks,
         appErrors,
+        githubTokenConfigured,
+        githubTokenStorageAvailable,
         syncError,
         isSyncing,
         lastSyncedAt,
@@ -454,6 +503,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         installedApps,
         setInstallMode,
         syncCatalog,
+        saveGitHubToken,
+        clearGitHubToken,
         installApp,
         updateApp,
         updateAllApps,

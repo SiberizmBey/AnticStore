@@ -2,12 +2,14 @@ const path = require('node:path');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { spawn, execFile } = require('node:child_process');
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
 
 const REGISTRY_FILE = () => path.join(app.getPath('userData'), 'installed-apps.json');
 const DOWNLOADS_DIR = () => path.join(app.getPath('userData'), 'downloads');
+const GITHUB_TOKEN_FILE = () => path.join(app.getPath('userData'), 'github-token.enc');
 
 const activeDownloads = new Map();
+let cachedGitHubToken;
 
 function getWindowFromEvent(event) {
   const window = BrowserWindow.fromWebContents(event.sender);
@@ -36,6 +38,25 @@ async function readLocalRegistry() {
 async function writeLocalRegistry(records) {
   await fsp.mkdir(path.dirname(REGISTRY_FILE()), { recursive: true });
   await fsp.writeFile(REGISTRY_FILE(), JSON.stringify(records, null, 2), 'utf8');
+}
+
+async function getGitHubToken() {
+  if (cachedGitHubToken !== undefined) return cachedGitHubToken;
+
+  try {
+    const encryptedToken = await fsp.readFile(GITHUB_TOKEN_FILE());
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error('Güvenli kimlik bilgisi saklama bu sistemde kullanılamıyor.');
+    }
+    cachedGitHubToken = safeStorage.decryptString(encryptedToken);
+    return cachedGitHubToken;
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      cachedGitHubToken = process.env.GITHUB_TOKEN || '';
+      return cachedGitHubToken;
+    }
+    throw error;
+  }
 }
 
 function scanWindowsUninstallRegistry() {
@@ -90,7 +111,10 @@ function matchWindowsRegistryEntry(winEntries, appId, name) {
     const child = normalizeName(entry.PSChildName);
     const display = normalizeName(entry.DisplayName);
     if (appId && child.includes(normalizeName(appId))) return true;
-    if (normName && (display === normName || (normName.length >= 8 && display.startsWith(normName)))) return true;
+    if (normName && display.startsWith(normName)) {
+      const suffix = display.slice(normName.length);
+      if (!suffix || /^\d+$/.test(suffix)) return true;
+    }
     if (idShort && idShort.length >= 8 && (display === idShort || child.includes(idShort))) return true;
     return false;
   });
@@ -116,6 +140,12 @@ function findExecutableFromDisplayIcon(displayIcon) {
   const match = value.match(/^"([^"]+\.exe)"/i) || value.match(/^(.+?\.exe)(?:,\s*-?\d+)?$/i);
   const executablePath = match?.[1];
   return executablePath && fs.existsSync(executablePath) ? executablePath : undefined;
+}
+
+function findInstallLocation(installLocation, uninstallString) {
+  if (installLocation) return installLocation;
+  const parsed = parseUninstallCommand(uninstallString);
+  return parsed?.exe ? path.dirname(parsed.exe) : undefined;
 }
 
 function runCommandAsync(command, args, options = {}) {
@@ -193,16 +223,60 @@ ipcMain.handle('store:fetch-json', async (_event, url) => {
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
     throw new Error('Geçersiz protokol.');
   }
+  const headers = {
+    'User-Agent': 'AnticStore/1.0 (com.anticvalley.store)',
+    Accept: 'application/json',
+  };
+  if (parsed.hostname.toLowerCase() === 'api.github.com') {
+    const token = await getGitHubToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
   const res = await fetch(parsed.toString(), {
-    headers: {
-      'User-Agent': 'AnticStore/1.0 (com.anticvalley.store)',
-      Accept: 'application/json',
-    },
+    headers,
   });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
   return res.json();
+});
+
+ipcMain.handle('store:get-github-token-status', async () => ({
+  configured: Boolean(process.env.GITHUB_TOKEN || fs.existsSync(GITHUB_TOKEN_FILE())),
+  secureStorageAvailable: safeStorage.isEncryptionAvailable(),
+}));
+
+ipcMain.handle('store:save-github-token', async (_event, rawToken) => {
+  const token = String(rawToken || '').trim();
+  if (!token || token.length > 500 || /\s/.test(token)) {
+    throw new Error('Geçerli bir GitHub erişim anahtarı girin.');
+  }
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Bu sistem güvenli anahtar saklamayı desteklemiyor.');
+  }
+
+  const verification = await fetch('https://api.github.com/rate_limit', {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'User-Agent': 'AnticStore/1.0 (com.anticvalley.store)',
+      Accept: 'application/json',
+    },
+  });
+  if (!verification.ok) {
+    throw new Error(
+      verification.status === 401
+        ? 'GitHub anahtarı geçersiz. Anahtarı kontrol edip tekrar deneyin.'
+        : `GitHub anahtarı doğrulanamadı (HTTP ${verification.status}).`
+    );
+  }
+
+  await fsp.mkdir(path.dirname(GITHUB_TOKEN_FILE()), { recursive: true });
+  await fsp.writeFile(GITHUB_TOKEN_FILE(), safeStorage.encryptString(token));
+  cachedGitHubToken = token;
+});
+
+ipcMain.handle('store:clear-github-token', async () => {
+  await fsp.rm(GITHUB_TOKEN_FILE(), { force: true });
+  cachedGitHubToken = process.env.GITHUB_TOKEN || '';
 });
 
 ipcMain.handle('store:get-installed', async (_event, catalogApps = []) => {
@@ -220,12 +294,22 @@ ipcMain.handle('store:get-installed', async (_event, catalogApps = []) => {
       merged.push({
         ...record,
         version: winMatch.DisplayVersion || record.version,
-        installLocation: winMatch.InstallLocation || record.installLocation,
+        installLocation:
+          findInstallLocation(
+            winMatch.InstallLocation,
+            winMatch.QuietUninstallString || winMatch.UninstallString
+          ) || record.installLocation,
         uninstallString: winMatch.QuietUninstallString || winMatch.UninstallString || record.uninstallString,
         executablePath:
           record.executablePath ||
           findExecutableFromDisplayIcon(winMatch.DisplayIcon) ||
-          findExecutableInDir(winMatch.InstallLocation, record.name),
+          findExecutableInDir(
+            findInstallLocation(
+              winMatch.InstallLocation,
+              winMatch.QuietUninstallString || winMatch.UninstallString
+            ),
+            record.name
+          ),
         detectedFromSystem: true,
       });
     } else if (process.platform !== 'win32' || !record.uninstallString) {
@@ -247,17 +331,19 @@ ipcMain.handle('store:get-installed', async (_event, catalogApps = []) => {
     if (merged.some((r) => r.appId === known.appId)) continue;
     const winMatch = matchWindowsRegistryEntry(winEntries, known.appId, known.name);
     if (winMatch) {
+      const uninstallString = winMatch.QuietUninstallString || winMatch.UninstallString;
+      const installLocation = findInstallLocation(winMatch.InstallLocation, uninstallString);
       merged.push({
         appId: known.appId,
         name: winMatch.DisplayName || known.name,
         version: winMatch.DisplayVersion || '0.0.0',
         installedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        installLocation: winMatch.InstallLocation || undefined,
+        installLocation,
         executablePath:
           findExecutableFromDisplayIcon(winMatch.DisplayIcon) ||
-          findExecutableInDir(winMatch.InstallLocation, known.name),
-        uninstallString: winMatch.QuietUninstallString || winMatch.UninstallString || undefined,
+          findExecutableInDir(installLocation, known.name),
+        uninstallString: uninstallString || undefined,
         detectedFromSystem: true,
         sourceMode: 'desktop',
       });
