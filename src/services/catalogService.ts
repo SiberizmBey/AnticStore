@@ -171,7 +171,7 @@ function mapBundleToStoreApp(
 
       return {
         tag,
-        version: cleanVersion(tag),
+        version: cleanVersion(r.name || tag),
         name: r.name || tag,
         notes: (r.body || '').trim(),
         publishedAt: r.published_at || '',

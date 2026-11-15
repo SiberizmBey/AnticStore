@@ -439,7 +439,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                       title="Ekran görüntüsünü aç"
                     >
                       <img
-                        src={screenshot}
+                        src={`${screenshot}${screenshot.includes('?') ? '&' : '?'}anticstore=${encodeURIComponent(app.syncedAt)}`}
                         alt={`${app.name} ekran görüntüsü ${index + 1}`}
                         loading="lazy"
                         className="aspect-video w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
