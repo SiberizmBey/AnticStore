@@ -71,7 +71,9 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       whileTap={{ scale: 0.99 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
       onClick={() => onSelect(app)}
-      className="group relative flex flex-col justify-between p-5 rounded-3xl bg-card border border-card hover:border-hover hover:bg-card-hover transition-all duration-150 cursor-pointer select-none"
+      className={`group relative flex flex-col justify-between p-5 rounded-3xl bg-card border ${
+        hasUpdate ? 'accent-border shadow-sm' : 'border-card'
+      } hover:border-hover hover:bg-card-hover transition-all duration-150 cursor-pointer select-none`}
     >
       <div>
         {/* Card Header */}
@@ -159,7 +161,12 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       <div className="pt-3 border-t border-subtle flex items-center justify-between gap-2">
         <div className="text-[11px] font-medium truncate">
           {hasUpdate ? (
-            <span className="accent-text font-semibold tabular-nums">
+            <span className="accent-text font-semibold tabular-nums flex items-center gap-1.5">
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full animate-pulse"
+                style={{ backgroundColor: 'var(--accent)' }}
+                aria-hidden="true"
+              />
               v{installed.version} → v{app.latestVersion}
             </span>
           ) : installed ? (

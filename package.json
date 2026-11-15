@@ -2,7 +2,7 @@
     "name": "anticstore",
     "author": "com.anticvalley.store",
     "private": true,
-    "version": "1.0.1",
+    "version": "1.0.3",
     "type": "module",
     "main": "desktop/main.cjs",
     "scripts": {
@@ -39,6 +39,7 @@
         "nsis": {
             "oneClick": false,
             "allowToChangeInstallationDirectory": true,
+            "runAfterFinish": true,
             "createDesktopShortcut": true,
             "createStartMenuShortcut": true,
             "shortcutName": "AnticStore"

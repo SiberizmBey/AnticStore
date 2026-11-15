@@ -4,6 +4,7 @@ const fsp = require('node:fs/promises');
 const { spawn, execFile } = require('node:child_process');
 const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
 
+const STORE_APP_ID = 'com.anticvalley.store';
 const REGISTRY_FILE = () => path.join(app.getPath('userData'), 'installed-apps.json');
 const DOWNLOADS_DIR = () => path.join(app.getPath('userData'), 'downloads');
 const GITHUB_TOKEN_FILE = () => path.join(app.getPath('userData'), 'github-token.enc');
@@ -463,6 +464,55 @@ ipcMain.handle('store:install-app', async (event, req) => {
     let executablePath;
     let installLocation;
     let uninstallString;
+
+    if (
+      process.platform === 'win32' &&
+      app.isPackaged &&
+      appId === STORE_APP_ID &&
+      mode === 'update' &&
+      lower.endsWith('.exe')
+    ) {
+      const installer = spawn(targetPath, [], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false,
+      });
+
+      await new Promise((resolve, reject) => {
+        installer.once('error', reject);
+        installer.once('spawn', resolve);
+      });
+      installer.unref();
+
+      sendProgress(sender, {
+        appId,
+        phase: 'updating',
+        percent: 100,
+        receivedBytes,
+        totalBytes: totalBytes || receivedBytes,
+        speedBps: 0,
+        message: 'AnticStore güncellemesi başlatıldı. Yükleyici tamamlanınca uygulama yeniden açılabilir.',
+      });
+
+      const existing = await readLocalRegistry();
+      const previous = existing.find((item) => item.appId === appId);
+      const nowIso = new Date().toISOString();
+      setTimeout(() => app.quit(), 300);
+
+      return {
+        appId,
+        name,
+        version,
+        installedAt: previous?.installedAt || nowIso,
+        updatedAt: nowIso,
+        installLocation: previous?.installLocation,
+        executablePath: previous?.executablePath,
+        uninstallString: previous?.uninstallString,
+        installerPath: targetPath,
+        detectedFromSystem: previous?.detectedFromSystem || false,
+        sourceMode: 'desktop',
+      };
+    }
 
     if (process.platform === 'win32') {
       if (lower.endsWith('.msi')) {
