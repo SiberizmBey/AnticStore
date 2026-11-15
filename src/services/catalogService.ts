@@ -6,6 +6,7 @@ import type {
   StoreAsset,
   StoreRelease,
 } from '../types';
+import bundledCatalog from '../../catalog.json';
 import { cleanVersion, detectAssetMeta } from '../utils/semver';
 
 export const OFFICIAL_STORE_REPO = 'SiberizmBey/AnticStore';
@@ -306,9 +307,20 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
 
 async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
   const desktop = window.anticStoreDesktop!;
+  if (window.location.protocol !== 'file:') {
+    const localRes = await fetch('/api/catalog/official', { cache: 'no-store' });
+    if (!localRes.ok) {
+      throw new Error(`Yerel katalog okunamadı (${localRes.status}).`);
+    }
+    const localManifest = (await localRes.json()) as RemoteCatalogManifest;
+    if (!localManifest || !Array.isArray(localManifest.apps)) {
+      throw new Error('Yerel katalog JSON formatı geçersiz.');
+    }
+    return localManifest;
+  }
+
   const ts = Date.now();
   const candidates = [
-    `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/public/catalog.json?t=${ts}`,
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/catalog.json?t=${ts}`,
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/master/catalog.json?t=${ts}`,
   ];
@@ -324,11 +336,7 @@ async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
     }
   }
 
-  const localRes = await fetch('./catalog.json');
-  if (!localRes.ok) {
-    throw new Error('Resmi katalog dosyası okunamadı.');
-  }
-  return (await localRes.json()) as RemoteCatalogManifest;
+  return bundledCatalog as RemoteCatalogManifest;
 }
 
 export async function syncOfficialCatalog(): Promise<{

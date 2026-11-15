@@ -35,6 +35,7 @@ interface StoreContextType {
   appErrors: Record<string, string>;
   githubTokenConfigured: boolean;
   githubTokenStorageAvailable: boolean;
+  githubTokenStatusLoaded: boolean;
   syncError: string | null;
   isSyncing: boolean;
   lastSyncedAt: string | null;
@@ -84,6 +85,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [appErrors, setAppErrors] = useState<Record<string, string>>({});
   const [githubTokenConfigured, setGitHubTokenConfigured] = useState(false);
   const [githubTokenStorageAvailable, setGitHubTokenStorageAvailable] = useState(false);
+  const [githubTokenStatusLoaded, setGitHubTokenStatusLoaded] = useState(
+    () => !window.anticStoreDesktop
+  );
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -134,7 +138,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setGitHubTokenConfigured(configured);
         setGitHubTokenStorageAvailable(secureStorageAvailable);
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setGitHubTokenStatusLoaded(true));
     void refreshInstalled();
 
     const unsubscribe = desktop.onTaskProgress((progress) => {
@@ -495,6 +500,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         appErrors,
         githubTokenConfigured,
         githubTokenStorageAvailable,
+        githubTokenStatusLoaded,
         syncError,
         isSyncing,
         lastSyncedAt,

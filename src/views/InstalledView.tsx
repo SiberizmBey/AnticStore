@@ -79,6 +79,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                     <AppIcon
                       name={app.name}
                       iconUrl={app.iconUrl}
+                      cacheKey={app.syncedAt}
                       className="w-11 h-11 rounded-2xl bg-card border border-subtle p-1.5 shrink-0 flex items-center justify-center overflow-hidden"
                       imageClassName="w-full h-full object-contain rounded-lg"
                     />
@@ -163,6 +164,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                     <AppIcon
                       name={app.name}
                       iconUrl={app.iconUrl}
+                      cacheKey={app.syncedAt}
                       className="w-12 h-12 rounded-2xl bg-modal border border-subtle p-1.5 shrink-0 flex items-center justify-center overflow-hidden"
                       imageClassName="w-full h-full object-contain rounded-lg"
                     />

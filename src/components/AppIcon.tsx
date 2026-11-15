@@ -4,6 +4,7 @@ import { Package } from 'lucide-react';
 interface AppIconProps {
   name: string;
   iconUrl?: string;
+  cacheKey?: string;
   className?: string;
   imageClassName?: string;
 }
@@ -11,6 +12,7 @@ interface AppIconProps {
 export function AppIcon({
   name,
   iconUrl,
+  cacheKey,
   className = 'w-12 h-12 rounded-2xl bg-inner border border-subtle flex items-center justify-center overflow-hidden shrink-0',
   imageClassName = 'w-full h-full object-contain',
 }: AppIconProps) {
@@ -18,15 +20,24 @@ export function AppIcon({
 
   useEffect(() => {
     setFailed(false);
-  }, [iconUrl]);
+  }, [iconUrl, cacheKey]);
 
   const initial = (name || 'A').trim().charAt(0).toUpperCase();
+  const imageSrc = iconUrl && cacheKey
+    ? (() => {
+        const hashIndex = iconUrl.indexOf('#');
+        const baseUrl = hashIndex === -1 ? iconUrl : iconUrl.slice(0, hashIndex);
+        const hash = hashIndex === -1 ? '' : iconUrl.slice(hashIndex);
+        const separator = baseUrl.includes('?') ? '&' : '?';
+        return `${baseUrl}${separator}anticstore=${encodeURIComponent(cacheKey)}${hash}`;
+      })()
+    : iconUrl;
 
   return (
     <div className={className}>
-      {iconUrl && !failed ? (
+      {imageSrc && !failed ? (
         <img
-          src={iconUrl}
+          src={imageSrc}
           alt={`${name} simgesi`}
           className={imageClassName}
           referrerPolicy="no-referrer"

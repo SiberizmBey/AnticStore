@@ -13,15 +13,25 @@ import {
 import { useTheme, ACCENT_PALETTES } from '../context/ThemeContext';
 import { useStore } from '../context/StoreContext';
 import { Footer } from '../components/Footer';
+import { GitHubTokenCard } from '../components/GitHubTokenCard';
 import type { AccentColor, InstallMode, ThemeMode, UIStyle } from '../types';
 
 export function SettingsView() {
   const { activeTheme, resolvedTheme, setTheme, activeAccent, setAccent, activeUIStyle, setUIStyle } = useTheme();
-  const { platformInfo, installMode, setInstallMode, officialSource } = useStore();
+  const {
+    platformInfo,
+    installMode,
+    setInstallMode,
+    officialSource,
+    githubTokenConfigured,
+    githubTokenStatusLoaded,
+  } = useStore();
 
   return (
     <div className="w-full flex flex-col justify-between min-h-full">
       <div className="max-w-4xl w-full mx-auto space-y-6 mb-8">
+        {githubTokenStatusLoaded && githubTokenConfigured && <GitHubTokenCard />}
+
         {/* Store & Installer Preferences */}
         <div className="p-6 rounded-3xl bg-card border border-subtle space-y-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">

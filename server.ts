@@ -173,6 +173,21 @@ async function createServer() {
   });
 
   app.get('/api/catalog/official', async (_req: Request, res: Response) => {
+    if (!IS_PRODUCTION) {
+      try {
+        const localPath = path.join(__dirname, 'catalog.json');
+        const parsed = JSON.parse(fs.readFileSync(localPath, 'utf8')) as Record<string, unknown>;
+        if (!Array.isArray(parsed.apps)) {
+          throw new Error('catalog.json apps alanı geçersiz.');
+        }
+        res.json({ ...parsed, _source: 'workspace/catalog.json' });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Yerel katalog okunamadı.';
+        res.status(500).json({ error: message });
+      }
+      return;
+    }
+
     const cacheKey = 'official:SiberizmBey/AnticStore';
     const cached = getCached(cacheKey);
     if (cached) {
@@ -181,7 +196,6 @@ async function createServer() {
     }
 
     const remoteCandidates = [
-      'https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/catalog.json',
       'https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/catalog.json',
       'https://raw.githubusercontent.com/SiberizmBey/AnticStore/master/catalog.json',
     ];
@@ -206,20 +220,15 @@ async function createServer() {
     }
 
     // Fallback to local catalog.json in workspace
-    const localPaths = [
-      path.join(__dirname, 'public', 'catalog.json'),
-      path.join(__dirname, 'catalog.json'),
-    ];
-    for (const localPath of localPaths) {
-      if (fs.existsSync(localPath)) {
-        try {
-          const raw = fs.readFileSync(localPath, 'utf8');
-          const parsed = JSON.parse(raw) as Record<string, unknown>;
-          res.json({ ...parsed, _source: 'local-fallback' });
-          return;
-        } catch {
-          // Try next
-        }
+    const localPath = path.join(__dirname, 'catalog.json');
+    if (fs.existsSync(localPath)) {
+      try {
+        const raw = fs.readFileSync(localPath, 'utf8');
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        res.json({ ...parsed, _source: 'local-fallback' });
+        return;
+      } catch {
+        // The local catalog is the sole fallback.
       }
     }
 

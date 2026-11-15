@@ -19,6 +19,20 @@
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
         {
+            "id": "com.anticvalley.kirpisolingen.stable",
+            "name": "Kirpi: SG",
+            "developer": "SiberizmBey",
+            "category": "ERP & Yönetim",
+            "summary": "SG Bıçak Sepeti için geliştirilmiş özel Kirpi sürümü",
+            "description": "Fabrika üretim süreçlerini optimize etmek ve müşteri ilişkilerini geliştirmek için SG Bıçak Sepeti'ne özel olarak geliştirilmiş açık kaynaklı bir ERP ve CRM yönetim sistemi.",
+            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpifab.png",
+            "websiteUrl": "https://github.com/SiberizmBey/KirpiFabrikaSolingen",
+            "screenshots": [],
+            "githubRepo": "SiberizmBey/KirpiSolingen",
+            "featured": true,
+            "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
+        },
+        {
             "id": "com.anticvalley.kirpi.stable",
             "name": "Kirpi",
             "developer": "SiberizmBey",

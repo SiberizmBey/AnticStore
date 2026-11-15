@@ -80,6 +80,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             <AppIcon
               name={app.name}
               iconUrl={app.iconUrl}
+              cacheKey={app.syncedAt}
               className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-modal p-1.5 transition-transform duration-200 group-hover:scale-105"
               imageClassName="h-full w-full object-contain rounded-xl"
             />

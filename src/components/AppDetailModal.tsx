@@ -156,6 +156,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
             <AppIcon
               name={app.name}
               iconUrl={app.iconUrl}
+              cacheKey={app.syncedAt}
               className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-card p-1.5"
               imageClassName="h-full w-full object-contain rounded-xl"
             />
