@@ -1,9 +1,37 @@
 {
   "schemaVersion": 1,
-  "storeName": "AnticStore Resmi Kataloğu",
-  "publisher": "SiberizmBey",
+  "storeName": "Antic Valley Resmi Kataloğu",
+  "publisher": "Antic Valley",
   "updatedAt": "2026-11-15T14:15:00Z",
   "apps": [
+    {
+      "id": "com.anticvalley.store",
+      "name": "Store",
+      "developer": "SiberizmBey",
+      "category": "Mağaza",
+      "summary": "Antic Valley resmi uygulama mağazası",
+      "description": "Antic Valley'in uygulamarını keşfetmek, indirmek ve güncellemek için resmi uygulama mağazası.",
+      "iconUrl": "./assets/img/icon.png",
+      "websiteUrl": "https://github.com/SiberizmBey/AnticStore",
+      "screenshots": [],
+      "githubRepo": "SiberizmBey/AnticStore",
+      "featured": true,
+      "tags": ["Mağaza", "Açık Kaynak", "Windows"]
+    },
+    {
+      "id": "com.anticvalley.kirpisolingen.stable",
+      "name": "Kirpi: SG",
+      "developer": "SiberizmBey",
+      "category": "ERP & Yönetim",
+      "summary": "Kurumsal ERP ve CRM yönetim sistemi",
+      "description": "Kurumsal kaynak planlaması (ERP) ve müşteri ilişkileri yönetimi (CRM) için açık kaynaklı bir yönetim sistemi. İşletmelerin süreçlerini optimize etmelerine ve müşteri ilişkilerini geliştirmelerine yardımcı olur.",
+      "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/KirpiFabrikaSolingen/main/public/assets/img/kirpi.png",
+      "websiteUrl": "https://github.com/SiberizmBey/KirpiFabrikaSolingen",
+      "screenshots": [],
+      "githubRepo": "SiberizmBey/KirpiFabrikaSolingen",
+      "featured": true,
+      "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
+    },
     {
       "id": "com.anticvalley.lir",
       "name": "Lir",
@@ -11,6 +39,9 @@
       "category": "Ses & Medya",
       "summary": "Soundpad muadili açık kaynaklı ses paneli",
       "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
+      "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
+      "websiteUrl": "https://github.com/SiberizmBey/Lir",
+      "screenshots": [],
       "githubRepo": "SiberizmBey/Lir",
       "featured": true,
       "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]

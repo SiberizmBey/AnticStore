@@ -13,7 +13,7 @@ contextBridge.exposeInMainWorld('anticStoreDesktop', {
 
   getPlatformInfo: () => ipcRenderer.invoke('store:platform-info'),
   fetchJson: (url) => ipcRenderer.invoke('store:fetch-json', url),
-  getInstalledApps: () => ipcRenderer.invoke('store:get-installed'),
+  getInstalledApps: (catalogApps) => ipcRenderer.invoke('store:get-installed', catalogApps),
   installApp: (req) => ipcRenderer.invoke('store:install-app', req),
   cancelDownload: (appId) => ipcRenderer.invoke('store:cancel-download', appId),
   uninstallApp: (req) => ipcRenderer.invoke('store:uninstall-app', req),

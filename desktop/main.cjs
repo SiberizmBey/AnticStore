@@ -90,8 +90,8 @@ function matchWindowsRegistryEntry(winEntries, appId, name) {
     const child = normalizeName(entry.PSChildName);
     const display = normalizeName(entry.DisplayName);
     if (appId && child.includes(normalizeName(appId))) return true;
-    if (normName && (display === normName || display.startsWith(normName))) return true;
-    if (idShort && idShort.length >= 2 && (display === idShort || child.includes(idShort))) return true;
+    if (normName && (display === normName || (normName.length >= 8 && display.startsWith(normName)))) return true;
+    if (idShort && idShort.length >= 8 && (display === idShort || child.includes(idShort))) return true;
     return false;
   });
 }
@@ -109,6 +109,13 @@ function findExecutableInDir(dirPath, appName) {
     return undefined;
   }
   return undefined;
+}
+
+function findExecutableFromDisplayIcon(displayIcon) {
+  const value = String(displayIcon || '').trim();
+  const match = value.match(/^"([^"]+\.exe)"/i) || value.match(/^(.+?\.exe)(?:,\s*-?\d+)?$/i);
+  const executablePath = match?.[1];
+  return executablePath && fs.existsSync(executablePath) ? executablePath : undefined;
 }
 
 function runCommandAsync(command, args, options = {}) {
@@ -198,7 +205,7 @@ ipcMain.handle('store:fetch-json', async (_event, url) => {
   return res.json();
 });
 
-ipcMain.handle('store:get-installed', async () => {
+ipcMain.handle('store:get-installed', async (_event, catalogApps = []) => {
   const localRecords = await readLocalRegistry();
   const winEntries = await scanWindowsUninstallRegistry();
 
@@ -216,7 +223,9 @@ ipcMain.handle('store:get-installed', async () => {
         installLocation: winMatch.InstallLocation || record.installLocation,
         uninstallString: winMatch.QuietUninstallString || winMatch.UninstallString || record.uninstallString,
         executablePath:
-          record.executablePath || findExecutableInDir(winMatch.InstallLocation, record.name),
+          record.executablePath ||
+          findExecutableFromDisplayIcon(winMatch.DisplayIcon) ||
+          findExecutableInDir(winMatch.InstallLocation, record.name),
         detectedFromSystem: true,
       });
     } else if (process.platform !== 'win32' || !record.uninstallString) {
@@ -224,10 +233,16 @@ ipcMain.handle('store:get-installed', async () => {
     }
   }
 
-  // Auto-detect known Windows apps (like Lir) even if installed outside AnticStore
-  const knownApps = [
-    { appId: 'com.anticvalley.lir', name: 'Lir' },
-  ];
+  const knownApps = Array.isArray(catalogApps)
+    ? catalogApps.filter(
+        (known) =>
+          known &&
+          typeof known.appId === 'string' &&
+          typeof known.name === 'string' &&
+          known.appId.trim() &&
+          known.name.trim()
+      )
+    : [];
   for (const known of knownApps) {
     if (merged.some((r) => r.appId === known.appId)) continue;
     const winMatch = matchWindowsRegistryEntry(winEntries, known.appId, known.name);
@@ -239,7 +254,9 @@ ipcMain.handle('store:get-installed', async () => {
         installedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         installLocation: winMatch.InstallLocation || undefined,
-        executablePath: findExecutableInDir(winMatch.InstallLocation, known.name),
+        executablePath:
+          findExecutableFromDisplayIcon(winMatch.DisplayIcon) ||
+          findExecutableInDir(winMatch.InstallLocation, known.name),
         uninstallString: winMatch.QuietUninstallString || winMatch.UninstallString || undefined,
         detectedFromSystem: true,
         sourceMode: 'desktop',

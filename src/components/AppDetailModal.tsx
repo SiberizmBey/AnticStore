@@ -7,6 +7,8 @@ import {
   Trash2,
   RotateCcw,
   ExternalLink,
+  Globe2,
+  Image,
   CheckCircle2,
   AlertCircle,
   Package,
@@ -174,6 +176,16 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                 className="p-2 rounded-xl text-secondary hover:text-primary hover:bg-card-hover border border-subtle transition-colors cursor-pointer"
               >
                 <ExternalLink className="w-4 h-4" />
+              </button>
+            )}
+            {app.websiteUrl && app.websiteUrl !== app.repoUrl && (
+              <button
+                type="button"
+                onClick={() => handleOpenExternal(app.websiteUrl)}
+                title="Uygulama Web Sitesini Aç"
+                className="p-2 rounded-xl text-secondary hover:text-primary hover:bg-card-hover border border-subtle transition-colors cursor-pointer"
+              >
+                <Globe2 className="w-4 h-4" />
               </button>
             )}
             <button
@@ -394,6 +406,36 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
             <p className="text-xs sm:text-sm text-secondary leading-relaxed">
               {app.description}
             </p>
+            <div className="space-y-2 pt-2">
+              <h4 className="text-[11px] font-bold text-secondary flex items-center gap-1.5">
+                <Image className="w-3.5 h-3.5 accent-text" />
+                <span>Ekran Görüntüleri</span>
+              </h4>
+              {app.screenshots && app.screenshots.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {app.screenshots.map((screenshot, index) => (
+                    <button
+                      key={`${screenshot}-${index}`}
+                      type="button"
+                      onClick={() => handleOpenExternal(screenshot)}
+                      className="group overflow-hidden rounded-2xl border border-subtle bg-inner cursor-pointer"
+                      title="Ekran görüntüsünü aç"
+                    >
+                      <img
+                        src={screenshot}
+                        alt={`${app.name} ekran görüntüsü ${index + 1}`}
+                        loading="lazy"
+                        className="aspect-video w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+                      />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted">
+                  Bu uygulama için henüz ekran görüntüsü eklenmemiş.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Version History / Release Picker */}

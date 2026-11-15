@@ -34,7 +34,9 @@ export interface AnticStoreDesktopAPI {
 
   getPlatformInfo: () => Promise<PlatformInfo>;
   fetchJson: <T = unknown>(url: string) => Promise<T>;
-  getInstalledApps: () => Promise<InstalledAppRecord[]>;
+  getInstalledApps: (
+    catalogApps?: Array<{ appId: string; name: string }>
+  ) => Promise<InstalledAppRecord[]>;
   installApp: (req: DesktopInstallRequest) => Promise<InstalledAppRecord>;
   cancelDownload: (appId: string) => Promise<void>;
   uninstallApp: (req: DesktopUninstallRequest) => Promise<void>;

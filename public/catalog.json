@@ -12,6 +12,9 @@
             "summary": "Antic Valley resmi uygulama mağazası",
             "description": "Antic Valley'in uygulamarını keşfetmek, indirmek ve güncellemek için resmi uygulama mağazası.",
             "githubRepo": "SiberizmBey/AnticStore",
+            "iconUrl": "./assets/img/icon.png",
+            "websiteUrl": "https://github.com/SiberizmBey/AnticStore",
+            "screenshots": [],
             "featured": true,
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
@@ -23,6 +26,9 @@
             "summary": "Kurumsal ERP ve CRM yönetim sistemi",
             "description": "Kurumsal kaynak planlaması (ERP) ve müşteri ilişkileri yönetimi (CRM) için açık kaynaklı bir yönetim sistemi. İşletmelerin süreçlerini optimize etmelerine ve müşteri ilişkilerini geliştirmelerine yardımcı olur.",
             "githubRepo": "SiberizmBey/KirpiFabrikaSolingen",
+            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/KirpiFabrikaSolingen/main/public/assets/img/kirpi.png",
+            "websiteUrl": "https://github.com/SiberizmBey/KirpiFabrikaSolingen",
+            "screenshots": [],
             "featured": true,
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
@@ -34,6 +40,9 @@
             "summary": "Soundpad muadili açık kaynaklı ses paneli",
             "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
             "githubRepo": "SiberizmBey/Lir",
+            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
+            "websiteUrl": "https://github.com/SiberizmBey/Lir",
+            "screenshots": [],
             "featured": true,
             "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]
         }

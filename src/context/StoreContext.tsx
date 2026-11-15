@@ -87,6 +87,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   });
 
   const webAbortControllers = useRef<Map<string, AbortController>>(new Map());
+  const catalogSyncInProgress = useRef(false);
 
   const setInstallMode = (mode: InstallMode) => {
     setInstallModeState(mode);
@@ -99,10 +100,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [installedMap]);
 
-  const refreshInstalled = useCallback(async () => {
+  const refreshInstalled = useCallback(async (catalogApps: StoreApp[] = []) => {
     if (!window.anticStoreDesktop) return;
     try {
-      const records = await window.anticStoreDesktop.getInstalledApps();
+      const records = await window.anticStoreDesktop.getInstalledApps(
+        catalogApps.map(({ id, name }) => ({ appId: id, name }))
+      );
       const map: Record<string, InstalledAppRecord> = {};
       for (const rec of records) {
         map[rec.appId] = rec;
@@ -131,6 +134,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [refreshInstalled]);
 
   const syncCatalog = useCallback(async () => {
+    if (catalogSyncInProgress.current) return;
+    catalogSyncInProgress.current = true;
     setIsSyncing(true);
     setSyncError(null);
 
@@ -139,16 +144,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setApps(syncedApps);
       setOfficialSource(source);
       setLastSyncedAt(new Date().toISOString());
-      await refreshInstalled();
+      await refreshInstalled(syncedApps);
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : 'Katalog senkronizasyonu başarısız.');
     } finally {
+      catalogSyncInProgress.current = false;
       setIsSyncing(false);
     }
   }, [refreshInstalled]);
 
   useEffect(() => {
     void syncCatalog();
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void syncCatalog();
+      }
+    }, 15 * 60 * 1000);
+    return () => window.clearInterval(intervalId);
   }, [syncCatalog]);
 
   const clearAppError = (appId: string) => {

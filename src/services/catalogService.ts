@@ -225,6 +225,7 @@ function mapBundleToStoreApp(
     manifest.iconUrl ||
     bundle.iconUrl ||
     repoInfo.owner?.avatar_url;
+  const screenshots = override?.screenshots || manifest.screenshots;
 
   return {
     id: appId,
@@ -235,6 +236,9 @@ function mapBundleToStoreApp(
     summary,
     description,
     iconUrl: iconUrl || undefined,
+    screenshots: Array.isArray(screenshots)
+      ? screenshots.filter((url): url is string => typeof url === 'string')
+      : [],
     websiteUrl: override?.websiteUrl || repoInfo.homepage || repoInfo.html_url || `https://github.com/${fullName}`,
     repoFullName: fullName,
     repoUrl: repoInfo.html_url || `https://github.com/${fullName}`,
@@ -285,6 +289,9 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
     summary: entry.summary || 'AnticStore uygulaması',
     description: entry.description || entry.summary || 'AnticStore kataloğundan sunulan uygulama.',
     iconUrl: entry.iconUrl,
+    screenshots: Array.isArray(entry.screenshots)
+      ? entry.screenshots.filter((url): url is string => typeof url === 'string')
+      : [],
     websiteUrl: entry.websiteUrl || entry.downloadUrl || 'https://anticvalley.com.tr',
     featured: Boolean(entry.featured),
     tags: entry.tags || ['Doğrudan Paket'],
