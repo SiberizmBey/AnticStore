@@ -28,7 +28,7 @@
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpifab.png",
             "websiteUrl": "https://github.com/SiberizmBey/KirpiFabrikaSolingen",
             "screenshots": [],
-            "githubRepo": "SiberizmBey/KirpiSolingen",
+            "githubRepo": "SiberizmBey/KirpiFabrikaSolingen",
             "featured": true,
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
@@ -41,7 +41,9 @@
             "description": "Kurumsal kaynak planlaması (ERP) ve müşteri ilişkileri yönetimi (CRM) için açık kaynaklı bir yönetim sistemi. İşletmelerin süreçlerini optimize etmelerine ve müşteri ilişkilerini geliştirmelerine yardımcı olur.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpi.png",
             "websiteUrl": "https://github.com/SiberizmBey/Kirpi",
-            "screenshots": [],
+            "screenshots": [
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/kirpimainpage.png"
+            ],
             "githubRepo": "SiberizmBey/Kirpi",
             "featured": true,
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
@@ -55,7 +57,9 @@
             "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
             "websiteUrl": "https://github.com/SiberizmBey/Lir",
-            "screenshots": [],
+            "screenshots": [
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png"
+            ],
             "githubRepo": "SiberizmBey/Lir",
             "featured": true,
             "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]

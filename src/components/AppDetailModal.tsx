@@ -47,6 +47,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
     launchApp,
     cancelTask,
     clearAppError,
+    syncCatalog,
   } = useStore();
 
   const [selectedTag, setSelectedTag] = useState<string>('');
@@ -212,6 +213,21 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
           {actionNotice && (
             <div className="p-3.5 rounded-2xl accent-subtle border accent-border text-xs text-primary leading-relaxed">
               {actionNotice}
+            </div>
+          )}
+
+          {app.syncError && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-300 flex items-start justify-between gap-3">
+              <span>
+                GitHub sürüm bilgileri alınamadı: {app.syncError}
+              </span>
+              <button
+                type="button"
+                onClick={() => void syncCatalog()}
+                className="shrink-0 font-semibold hover:underline cursor-pointer"
+              >
+                Yeniden Dene
+              </button>
             </div>
           )}
 
@@ -440,7 +456,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
           </div>
 
           {/* Version History / Release Picker */}
-          {app.releases.length > 0 && (
+          {app.releases.length > 0 ? (
             <div className="p-4 rounded-2xl bg-card border border-subtle space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-xs font-bold text-primary">
@@ -510,7 +526,11 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                 </div>
               )}
             </div>
-          )}
+          ) : !app.syncError ? (
+            <div className="p-4 rounded-2xl bg-card border border-subtle text-xs text-muted">
+              Bu uygulama için GitHub’da yayınlanmış bir sürüm bulunamadı.
+            </div>
+          ) : null}
 
           {/* Source & Metadata Footer */}
           <div className="pt-2 text-[11px] text-muted flex flex-wrap items-center justify-between gap-2 border-t border-subtle">

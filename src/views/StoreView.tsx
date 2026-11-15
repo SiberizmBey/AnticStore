@@ -176,6 +176,27 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
           hasRepoError={hasGitHubRepoError}
         />
       )}
+      {githubTokenStatusLoaded &&
+        githubTokenConfigured &&
+        (hasGitHubRateLimitError || hasGitHubRepoError) && (
+          <section
+            role="alert"
+            className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3"
+          >
+            <p className="text-xs text-secondary">
+              {hasGitHubRateLimitError
+                ? 'GitHub sürüm bilgileri alınamadı. Ayarlar’dan anahtar erişimini kontrol edin.'
+                : 'Bir GitHub deposuna erişilemiyor. Detay ekranında hatanın hangi depo için olduğunu görebilirsiniz.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => void syncCatalog()}
+              className="shrink-0 text-xs font-semibold accent-text hover:underline cursor-pointer"
+            >
+              Yeniden Dene
+            </button>
+          </section>
+        )}
 
       {/* Latest Updated App Spotlight */}
       {latestUpdatedApp && !searchQuery.trim() && selectedCategory === 'Tümü' && statusFilter === 'all' && (
