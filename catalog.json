@@ -19,16 +19,16 @@
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
         {
-            "id": "com.anticvalley.kirpisolingen.stable",
-            "name": "Kirpi: SG",
+            "id": "com.anticvalley.kirpi.stable",
+            "name": "Kirpi",
             "developer": "SiberizmBey",
             "category": "ERP & Yönetim",
             "summary": "Kurumsal ERP ve CRM yönetim sistemi",
             "description": "Kurumsal kaynak planlaması (ERP) ve müşteri ilişkileri yönetimi (CRM) için açık kaynaklı bir yönetim sistemi. İşletmelerin süreçlerini optimize etmelerine ve müşteri ilişkilerini geliştirmelerine yardımcı olur.",
-            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpisg.png",
-            "websiteUrl": "https://github.com/SiberizmBey/KirpiFabrikaSolingen",
+            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpi.png",
+            "websiteUrl": "https://github.com/SiberizmBey/Kirpi",
             "screenshots": [],
-            "githubRepo": "SiberizmBey/KirpiFabrikaSolingen",
+            "githubRepo": "SiberizmBey/Kirpi",
             "featured": true,
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },

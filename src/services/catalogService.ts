@@ -92,7 +92,7 @@ async function fetchGitHubBundleDesktop(owner: string, repo: string): Promise<Gi
 
   let packageJson: GitHubRepoBundle['packageJson'] = null;
   try {
-    packageJson = await desktop.fetchJson(
+    packageJson = await desktop.fetchJsonOptional<NonNullable<GitHubRepoBundle['packageJson']>>(
       `https://raw.githubusercontent.com/${owner}/${repo}/main/package.json`
     );
   } catch {
@@ -101,7 +101,7 @@ async function fetchGitHubBundleDesktop(owner: string, repo: string): Promise<Gi
 
   let anticManifest: GitHubRepoBundle['anticManifest'] = null;
   try {
-    anticManifest = await desktop.fetchJson(
+    anticManifest = await desktop.fetchJsonOptional<NonNullable<GitHubRepoBundle['anticManifest']>>(
       `https://raw.githubusercontent.com/${owner}/${repo}/main/anticstore.json`
     );
   } catch {

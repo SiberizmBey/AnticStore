@@ -145,7 +145,11 @@ function findExecutableFromDisplayIcon(displayIcon) {
 function findInstallLocation(installLocation, uninstallString) {
   if (installLocation) return installLocation;
   const parsed = parseUninstallCommand(uninstallString);
-  return parsed?.exe ? path.dirname(parsed.exe) : undefined;
+  if (!parsed?.exe || /^(msiexec|rundll32|regsvr32|cmd|powershell|wscript)\.exe$/i.test(path.basename(parsed.exe))) {
+    return undefined;
+  }
+  const directory = path.dirname(parsed.exe);
+  return fs.existsSync(directory) ? directory : undefined;
 }
 
 function runCommandAsync(command, args, options = {}) {
@@ -218,7 +222,7 @@ ipcMain.handle('store:platform-info', async () => {
   };
 });
 
-ipcMain.handle('store:fetch-json', async (_event, url) => {
+async function fetchJsonFromUrl(url, allowMissing = false) {
   const parsed = new URL(String(url));
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
     throw new Error('Geçersiz protokol.');
@@ -234,11 +238,15 @@ ipcMain.handle('store:fetch-json', async (_event, url) => {
   const res = await fetch(parsed.toString(), {
     headers,
   });
+  if (allowMissing && res.status === 404) return null;
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    throw new Error(`HTTP ${res.status}: ${res.statusText} (${parsed.hostname}${parsed.pathname})`);
   }
   return res.json();
-});
+}
+
+ipcMain.handle('store:fetch-json', (_event, url) => fetchJsonFromUrl(url));
+ipcMain.handle('store:fetch-json-optional', (_event, url) => fetchJsonFromUrl(url, true));
 
 ipcMain.handle('store:get-github-token-status', async () => ({
   configured: Boolean(process.env.GITHUB_TOKEN || fs.existsSync(GITHUB_TOKEN_FILE())),

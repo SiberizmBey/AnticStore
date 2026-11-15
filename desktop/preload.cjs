@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('anticStoreDesktop', {
 
   getPlatformInfo: () => ipcRenderer.invoke('store:platform-info'),
   fetchJson: (url) => ipcRenderer.invoke('store:fetch-json', url),
+  fetchJsonOptional: (url) => ipcRenderer.invoke('store:fetch-json-optional', url),
   getGitHubTokenStatus: () => ipcRenderer.invoke('store:get-github-token-status'),
   saveGitHubToken: (token) => ipcRenderer.invoke('store:save-github-token', token),
   clearGitHubToken: () => ipcRenderer.invoke('store:clear-github-token'),
