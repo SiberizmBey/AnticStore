@@ -307,18 +307,6 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
 
 async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
   const desktop = window.anticStoreDesktop!;
-  if (window.location.protocol !== 'file:') {
-    const localRes = await fetch('/api/catalog/official', { cache: 'no-store' });
-    if (!localRes.ok) {
-      throw new Error(`Yerel katalog okunamadı (${localRes.status}).`);
-    }
-    const localManifest = (await localRes.json()) as RemoteCatalogManifest;
-    if (!localManifest || !Array.isArray(localManifest.apps)) {
-      throw new Error('Yerel katalog JSON formatı geçersiz.');
-    }
-    return localManifest;
-  }
-
   const ts = Date.now();
   const candidates = [
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/catalog.json?t=${ts}`,

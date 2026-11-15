@@ -173,21 +173,6 @@ async function createServer() {
   });
 
   app.get('/api/catalog/official', async (_req: Request, res: Response) => {
-    if (!IS_PRODUCTION) {
-      try {
-        const localPath = path.join(__dirname, 'catalog.json');
-        const parsed = JSON.parse(fs.readFileSync(localPath, 'utf8')) as Record<string, unknown>;
-        if (!Array.isArray(parsed.apps)) {
-          throw new Error('catalog.json apps alanı geçersiz.');
-        }
-        res.json({ ...parsed, _source: 'workspace/catalog.json' });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Yerel katalog okunamadı.';
-        res.status(500).json({ error: message });
-      }
-      return;
-    }
-
     const cacheKey = 'official:SiberizmBey/AnticStore';
     const cached = getCached(cacheKey);
     if (cached) {
@@ -195,9 +180,10 @@ async function createServer() {
       return;
     }
 
+    const cacheBuster = Date.now();
     const remoteCandidates = [
-      'https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/catalog.json',
-      'https://raw.githubusercontent.com/SiberizmBey/AnticStore/master/catalog.json',
+      `https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/catalog.json?t=${cacheBuster}`,
+      `https://raw.githubusercontent.com/SiberizmBey/AnticStore/master/catalog.json?t=${cacheBuster}`,
     ];
 
     for (const candidate of remoteCandidates) {
