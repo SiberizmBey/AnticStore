@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "storeName": "AnticStore Resmi Kataloğu",
+  "publisher": "SiberizmBey",
+  "updatedAt": "2026-11-15T14:15:00Z",
+  "apps": [
+    {
+      "id": "com.anticvalley.lir",
+      "name": "Lir",
+      "developer": "SiberizmBey",
+      "category": "Ses & Medya",
+      "summary": "Soundpad muadili açık kaynaklı ses paneli",
+      "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
+      "githubRepo": "SiberizmBey/Lir",
+      "featured": true,
+      "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]
+    }
+  ]
+}

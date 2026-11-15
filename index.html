@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="tr" data-style="gama">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AnticStore — Uygulama Mağazası</title>
+    <link rel="icon" type="image/png" href="./assets/aistudio/anticstore_edaa22f1.png" />
+    <meta name="description" content="AnticStore (com.anticvalley.store) — Antic Valley uygulamalarını doğrudan indirin, kurun, güncelleyin ve yönetin." />
+    <meta property="og:title" content="AnticStore — Uygulama Mağazası" />
+    <meta property="og:description" content="Hesap girişi gerektirmeyen, otomatik güncellenen masaüstü ve web uygulama mağazası." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('anticstore_theme_v2') || 'system';
+          var effective = saved === 'system'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            : saved;
+          document.documentElement.setAttribute('data-theme', effective);
+          document.documentElement.classList.add(effective);
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-canvas text-primary antialiased font-figtree selection:bg-[#982376] selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
