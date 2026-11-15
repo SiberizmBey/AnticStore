@@ -64,6 +64,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
   const hasGitHubRateLimitError = apps.some((app) =>
     /403|rate.?limit/i.test(app.syncError || '')
   ) || /403|rate.?limit/i.test(syncError || '');
+  const hasGitHubRepoError = apps.some((app) => /404|not found/i.test(app.syncError || ''));
 
   const handleSaveGitHubToken = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -221,7 +222,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
       <section
         role="status"
         className={`p-4 rounded-2xl border ${
-          hasGitHubRateLimitError
+          hasGitHubRateLimitError || hasGitHubRepoError
             ? 'bg-amber-500/10 border-amber-500/30'
             : 'bg-card border-subtle'
         }`}
@@ -229,7 +230,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-inner border border-subtle shrink-0">
-              {hasGitHubRateLimitError ? (
+              {hasGitHubRateLimitError || hasGitHubRepoError ? (
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
               ) : (
                 <Github className="w-4 h-4 accent-text" />
@@ -239,11 +240,15 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
               <p className="text-xs font-bold text-primary">
                 {hasGitHubRateLimitError
                   ? 'GitHub istek sınırına ulaşıldı'
+                  : hasGitHubRepoError
+                  ? 'Bir GitHub deposuna erişilemiyor'
                   : 'GitHub sürüm bilgileri'}
               </p>
               <p className="text-[11px] text-secondary leading-relaxed">
                 {hasGitHubRateLimitError
                   ? 'Güncel sürümler alınamadı. Kişisel erişim anahtarı ekleyerek GitHub istek limitini yükseltin.'
+                  : hasGitHubRepoError
+                  ? '404 hatası kota hatası değildir. Katalogdaki githubRepo yolunu kontrol edin; özel depolar için anahtara salt okunur içerik erişimi verin.'
                   : 'GitHub anonim istekleri sınırlar. İsteğe bağlı bir anahtar eklemek sürüm ve indirme bilgilerinin güvenilir eşitlenmesini sağlar.'}
                 {' '}Anahtar bu cihazda şifrelenerek saklanır.
               </p>
@@ -270,7 +275,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
               <span>GitHub’dan anahtar al</span>
             </button>
             <p className="text-[10px] text-muted">
-              Herkese açık depolar için salt okunur izin yeterlidir.
+              Yalnız katalog depolarına erişim verin; özel depolar için Contents: Read-only seçin.
             </p>
             {platformInfo.isDesktop && githubTokenStorageAvailable && (
               <form onSubmit={handleSaveGitHubToken} className="flex flex-wrap gap-2">
