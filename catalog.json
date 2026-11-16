@@ -12,8 +12,12 @@
             "summary": "Antic Valley resmi uygulama mağazası",
             "description": "Antic Valley'in uygulamarını keşfetmek, indirmek ve güncellemek için resmi uygulama mağazası.",
             "iconUrl": "./assets/img/icon.png",
-            "websiteUrl": "https://github.com/SiberizmBey/Koru",
-            "screenshots": [],
+            "websiteUrl": "https://koru.anticvalley.com.tr",
+            "screenshots": [
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koru1.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koru2.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koru3.png"
+            ],
             "githubRepo": "SiberizmBey/Koru",
             "featured": true,
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
@@ -42,8 +46,7 @@
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpi.png",
             "websiteUrl": "https://kirpi.anticvalley.com.tr",
             "screenshots": [
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/kirpimainpage.png",
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png"
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/kirpi1.png"
             ],
             "githubRepo": "SiberizmBey/Kirpi",
             "featured": true,
@@ -59,8 +62,7 @@
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
             "websiteUrl": "https://lir.anticvalley.com.tr",
             "screenshots": [
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png",
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png"
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir1.png"
             ],
             "githubRepo": "SiberizmBey/Lir",
             "featured": true,
