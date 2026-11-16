@@ -26,7 +26,7 @@
             "summary": "SG Bıçak Sepeti için geliştirilmiş özel Kirpi sürümü",
             "description": "Fabrika üretim süreçlerini optimize etmek ve müşteri ilişkilerini geliştirmek için SG Bıçak Sepeti'ne özel olarak geliştirilmiş açık kaynaklı bir ERP ve CRM yönetim sistemi.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpifab.png",
-            "websiteUrl": "https://github.com/SiberizmBey/KirpiFabrikaSolingen",
+            "websiteUrl": "https://kirpisg.anticvalley.com.tr",
             "screenshots": [],
             "githubRepo": "SiberizmBey/KirpiFabrikaSolingen",
             "featured": true,
@@ -40,7 +40,7 @@
             "summary": "Kurumsal ERP ve CRM yönetim sistemi",
             "description": "Kurumsal kaynak planlaması (ERP) ve müşteri ilişkileri yönetimi (CRM) için açık kaynaklı bir yönetim sistemi. İşletmelerin süreçlerini optimize etmelerine ve müşteri ilişkilerini geliştirmelerine yardımcı olur.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpi.png",
-            "websiteUrl": "https://github.com/SiberizmBey/Kirpi",
+            "websiteUrl": "https://kirpi.anticvalley.com.tr",
             "screenshots": [
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/kirpimainpage.png",
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png"
@@ -57,7 +57,7 @@
             "summary": "Soundpad muadili açık kaynaklı ses paneli",
             "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
-            "websiteUrl": "https://github.com/SiberizmBey/Lir",
+            "websiteUrl": "https://lir.anticvalley.com.tr",
             "screenshots": [
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png",
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png"
