@@ -16,7 +16,7 @@ export const ACCENT_PALETTES: Record<
   }
 > = {
   anticpurple: {
-    name: 'AnticStore Moru (Varsayılan)',
+    name: 'Koru Moru (Varsayılan)',
     accent: '#982376',
     hover: '#7e1c62',
     active: '#65144e',
@@ -126,14 +126,16 @@ function resolveSystemTheme(): 'dark' | 'light' {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [activeTheme, setActiveThemeState] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('anticstore_theme_v2') as ThemeMode;
+    const saved = (localStorage.getItem('koru_theme_v2') ||
+      localStorage.getItem('anticstore_theme_v2')) as ThemeMode;
     return saved === 'system' || saved === 'dark' || saved === 'light' || saved === 'amoled'
       ? saved
       : 'system';
   });
 
   const [resolvedTheme, setResolvedTheme] = useState<'amoled' | 'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('anticstore_theme_v2') as ThemeMode;
+    const saved = (localStorage.getItem('koru_theme_v2') ||
+      localStorage.getItem('anticstore_theme_v2')) as ThemeMode;
     if (!saved || saved === 'system') return resolveSystemTheme();
     return saved === 'dark' || saved === 'light' || saved === 'amoled' ? saved : resolveSystemTheme();
   });
@@ -165,6 +167,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const resolvedText = isLight ? pal.lightText : pal.text;
 
       root.style.setProperty('--accent', resolvedAccent);
+      root.style.setProperty('--accent-rgb', pal.rgb);
       root.style.setProperty('--accent-hover', isLight ? pal.active : pal.hover);
       root.style.setProperty('--accent-active', pal.active);
       root.style.setProperty('--accent-subtle', pal.subtle);
@@ -198,6 +201,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setTheme = useCallback(
     (theme: ThemeMode) => {
       setActiveThemeState(theme);
+      localStorage.setItem('koru_theme_v2', theme);
       localStorage.setItem('anticstore_theme_v2', theme);
       applyEffectiveTheme(theme, activeAccent);
     },

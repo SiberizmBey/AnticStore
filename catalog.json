@@ -1,12 +1,12 @@
 {
     "schemaVersion": 1,
-    "storeName": "AnticStore Resmi Kataloğu",
+    "storeName": "Koru Resmi Kataloğu",
     "publisher": "Antic Valley",
     "updatedAt": "2026-11-15T14:15:00Z",
     "apps": [
         {
-            "id": "com.anticvalley.store",
-            "name": "Store",
+            "id": "com.anticvalley.koru",
+            "name": "Koru",
             "developer": "SiberizmBey",
             "category": "Mağaza",
             "summary": "Antic Valley resmi uygulama mağazası",

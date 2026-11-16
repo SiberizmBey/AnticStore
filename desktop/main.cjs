@@ -1,10 +1,12 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
+const os = require('node:os');
 const { spawn, execFile } = require('node:child_process');
 const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
 
-const STORE_APP_ID = 'com.anticvalley.store';
+const STORE_APP_ID = 'com.anticvalley.koru';
+const LEGACY_STORE_APP_ID = 'com.anticvalley.store';
 const REGISTRY_FILE = () => path.join(app.getPath('userData'), 'installed-apps.json');
 const DOWNLOADS_DIR = () => path.join(app.getPath('userData'), 'downloads');
 const GITHUB_TOKEN_FILE = () => path.join(app.getPath('userData'), 'github-token.enc');
@@ -104,14 +106,36 @@ function normalizeName(value) {
     .replace(/[^a-z0-9]/g, '');
 }
 
+function isSelfStoreApp(appId, name) {
+  const normId = String(appId || '').trim().toLowerCase();
+  const normName = normalizeName(name);
+  return (
+    normId === STORE_APP_ID ||
+    normId === LEGACY_STORE_APP_ID ||
+    normName === 'koru' ||
+    normName === 'anticstore'
+  );
+}
+
 function matchWindowsRegistryEntry(winEntries, appId, name) {
   const idShort = normalizeName(String(appId || '').split('.').pop());
   const normName = normalizeName(name);
+  const selfApp = isSelfStoreApp(appId, name);
 
   return winEntries.find((entry) => {
     const child = normalizeName(entry.PSChildName);
     const display = normalizeName(entry.DisplayName);
     if (appId && child.includes(normalizeName(appId))) return true;
+    if (selfApp) {
+      if (
+        child.includes(normalizeName(STORE_APP_ID)) ||
+        child.includes(normalizeName(LEGACY_STORE_APP_ID)) ||
+        display === 'koru' ||
+        display === 'anticstore'
+      ) {
+        return true;
+      }
+    }
     if (normName && display.startsWith(normName)) {
       const suffix = display.slice(normName.length);
       if (!suffix || /^\d+$/.test(suffix)) return true;
@@ -218,7 +242,7 @@ ipcMain.handle('store:platform-info', async () => {
     platform: process.platform,
     arch: process.arch,
     appVersion: app.getVersion(),
-    packageId: 'com.anticvalley.store',
+    packageId: STORE_APP_ID,
     downloadsDir: DOWNLOADS_DIR(),
   };
 });
@@ -229,7 +253,7 @@ async function fetchJsonFromUrl(url, allowMissing = false) {
     throw new Error('Geçersiz protokol.');
   }
   const headers = {
-    'User-Agent': 'AnticStore/1.0 (com.anticvalley.store)',
+    'User-Agent': 'Koru/1.0 (com.anticvalley.koru)',
     Accept: 'application/json',
   };
   if (parsed.hostname.toLowerCase() === 'api.github.com') {
@@ -266,7 +290,7 @@ ipcMain.handle('store:save-github-token', async (_event, rawToken) => {
   const verification = await fetch('https://api.github.com/rate_limit', {
     headers: {
       Authorization: `Bearer ${token}`,
-      'User-Agent': 'AnticStore/1.0 (com.anticvalley.store)',
+      'User-Agent': 'Koru/1.0 (com.anticvalley.koru)',
       Accept: 'application/json',
     },
   });
@@ -339,13 +363,14 @@ ipcMain.handle('store:get-installed', async (_event, catalogApps = []) => {
   for (const known of knownApps) {
     if (merged.some((r) => r.appId === known.appId)) continue;
     const winMatch = matchWindowsRegistryEntry(winEntries, known.appId, known.name);
+    const selfApp = isSelfStoreApp(known.appId, known.name);
     if (winMatch) {
       const uninstallString = winMatch.QuietUninstallString || winMatch.UninstallString;
       const installLocation = findInstallLocation(winMatch.InstallLocation, uninstallString);
       merged.push({
         appId: known.appId,
         name: winMatch.DisplayName || known.name,
-        version: winMatch.DisplayVersion || '0.0.0',
+        version: selfApp && app.isPackaged ? app.getVersion() : winMatch.DisplayVersion || '0.0.0',
         installedAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         installLocation,
@@ -353,6 +378,18 @@ ipcMain.handle('store:get-installed', async (_event, catalogApps = []) => {
           findExecutableFromDisplayIcon(winMatch.DisplayIcon) ||
           findExecutableInDir(installLocation, known.name),
         uninstallString: uninstallString || undefined,
+        detectedFromSystem: true,
+        sourceMode: 'desktop',
+      });
+    } else if (selfApp && app.isPackaged) {
+      merged.push({
+        appId: known.appId,
+        name: known.name,
+        version: app.getVersion(),
+        installedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        installLocation: path.dirname(process.execPath),
+        executablePath: process.execPath,
         detectedFromSystem: true,
         sourceMode: 'desktop',
       });
@@ -393,7 +430,7 @@ ipcMain.handle('store:install-app', async (event, req) => {
     });
 
     const response = await fetch(downloadUrl, {
-      headers: { 'User-Agent': 'AnticStore/1.0 (com.anticvalley.store)' },
+      headers: { 'User-Agent': 'Koru/1.0 (com.anticvalley.koru)' },
       signal: controller.signal,
       redirect: 'follow',
     });
@@ -468,21 +505,103 @@ ipcMain.handle('store:install-app', async (event, req) => {
     if (
       process.platform === 'win32' &&
       app.isPackaged &&
-      appId === STORE_APP_ID &&
-      mode === 'update' &&
+      isSelfStoreApp(appId, name) &&
       lower.endsWith('.exe')
     ) {
-      const installer = spawn(targetPath, [], {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: false,
-      });
+      const vbsPath = path.join(os.tmpdir(), `koru-self-update-${Date.now()}-${process.pid}.vbs`);
+      const vbsLines = [
+        'On Error Resume Next',
+        'Set shell = CreateObject("WScript.Shell")',
+        'Set fso = CreateObject("Scripting.FileSystemObject")',
+        'waitPid = shell.Environment("PROCESS")("KORU_WAIT_PID")',
+        'installerPath = shell.Environment("PROCESS")("KORU_INSTALLER_PATH")',
+        'installerArgs = shell.Environment("PROCESS")("KORU_INSTALLER_ARGS")',
+        'relaunchExe = shell.Environment("PROCESS")("KORU_RELAUNCH_EXE")',
+        'Set wmi = GetObject("winmgmts:{impersonationLevel=impersonate}!\\\\.\\root\\cimv2")',
+        'If Not IsEmpty(waitPid) And waitPid <> "" Then',
+        '  For i = 1 To 60',
+        '    Set procs = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId = " & waitPid)',
+        '    If procs.Count = 0 Then Exit For',
+        '    WScript.Sleep 250',
+        '  Next',
+        'End If',
+        'WScript.Sleep 800',
+        'If installerPath <> "" And fso.FileExists(installerPath) Then',
+        '  cmd = Chr(34) & installerPath & Chr(34)',
+        '  If installerArgs <> "" Then',
+        '    cmd = cmd & " " & installerArgs',
+        '  End If',
+        '  If installerArgs = "/S" Then',
+        '    shell.Run cmd, 1, True',
+        '    If relaunchExe <> "" And fso.FileExists(relaunchExe) Then',
+        '      shell.Run Chr(34) & relaunchExe & Chr(34), 1, False',
+        '    End If',
+        '  Else',
+        '    shell.Run cmd, 1, False',
+        '  End If',
+        'End If',
+        'fso.DeleteFile WScript.ScriptFullName, True',
+      ];
+      await fsp.writeFile(vbsPath, vbsLines.join('\r\n'), 'utf8');
 
-      await new Promise((resolve, reject) => {
-        installer.once('error', reject);
-        installer.once('spawn', resolve);
-      });
-      installer.unref();
+      const wscriptExe = path.join(
+        process.env.SystemRoot || 'C:\\Windows',
+        'System32',
+        'wscript.exe'
+      );
+
+      const updaterEnv = {
+        ...process.env,
+        KORU_WAIT_PID: String(process.pid),
+        KORU_INSTALLER_PATH: targetPath,
+        KORU_INSTALLER_ARGS: silent ? '/S' : '',
+        KORU_RELAUNCH_EXE: process.execPath || '',
+      };
+
+      try {
+        const launcher = spawn(wscriptExe, ['//Nologo', '//B', vbsPath], {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: false,
+          env: updaterEnv,
+        });
+
+        await new Promise((resolve, reject) => {
+          launcher.once('error', reject);
+          launcher.once('spawn', resolve);
+        });
+        launcher.unref();
+      } catch (vbsErr) {
+        await fsp.rm(vbsPath, { force: true }).catch(() => {});
+        const psCmd = [
+          '$waitPid = $env:KORU_WAIT_PID;',
+          'if ($waitPid) { Wait-Process -Id ([int]$waitPid) -Timeout 15 -ErrorAction SilentlyContinue };',
+          'Start-Sleep -Milliseconds 800;',
+          '$inst = $env:KORU_INSTALLER_PATH;',
+          '$args = $env:KORU_INSTALLER_ARGS;',
+          'if ($inst -and (Test-Path -LiteralPath $inst)) {',
+          '  if ($args) { Start-Process -FilePath $inst -ArgumentList $args -WindowStyle Normal }',
+          '  else { Start-Process -FilePath $inst -WindowStyle Normal }',
+          '}',
+        ].join(' ');
+
+        const psLauncher = spawn(
+          'powershell.exe',
+          ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', psCmd],
+          {
+            detached: true,
+            stdio: 'ignore',
+            windowsHide: true,
+            env: updaterEnv,
+          }
+        );
+
+        await new Promise((resolve, reject) => {
+          psLauncher.once('error', () => reject(vbsErr));
+          psLauncher.once('spawn', resolve);
+        });
+        psLauncher.unref();
+      }
 
       sendProgress(sender, {
         appId,
@@ -491,27 +610,35 @@ ipcMain.handle('store:install-app', async (event, req) => {
         receivedBytes,
         totalBytes: totalBytes || receivedBytes,
         speedBps: 0,
-        message: 'AnticStore güncellemesi başlatıldı. Yükleyici tamamlanınca uygulama yeniden açılabilir.',
+        message: 'Koru güncellemesi başlatılıyor; uygulama kapatılıp yükleyici açılacak.',
       });
 
       const existing = await readLocalRegistry();
       const previous = existing.find((item) => item.appId === appId);
       const nowIso = new Date().toISOString();
-      setTimeout(() => app.quit(), 300);
-
-      return {
+      const updatedRecord = {
         appId,
         name,
         version,
         installedAt: previous?.installedAt || nowIso,
         updatedAt: nowIso,
-        installLocation: previous?.installLocation,
-        executablePath: previous?.executablePath,
+        installLocation: previous?.installLocation || path.dirname(process.execPath),
+        executablePath: previous?.executablePath || process.execPath,
         uninstallString: previous?.uninstallString,
         installerPath: targetPath,
         detectedFromSystem: previous?.detectedFromSystem || false,
         sourceMode: 'desktop',
       };
+      const next = existing.filter((item) => item.appId !== appId);
+      next.push(updatedRecord);
+      await writeLocalRegistry(next).catch(() => {});
+
+      setTimeout(() => {
+        app.quit();
+        setTimeout(() => app.exit(0), 1200);
+      }, 250);
+
+      return updatedRecord;
     }
 
     if (process.platform === 'win32') {
@@ -663,7 +790,7 @@ async function createWindow() {
     height: 840,
     minWidth: 880,
     minHeight: 620,
-    title: 'AnticStore',
+    title: 'Koru',
     icon: iconPath,
     frame: false,
     backgroundColor: '#000000',
@@ -694,7 +821,7 @@ app.whenReady().then(async () => {
   try {
     await createWindow();
   } catch (error) {
-    console.error('Failed to load the AnticStore application window:', error);
+    console.error('Failed to load the Koru application window:', error);
     app.quit();
   }
 });
@@ -702,7 +829,7 @@ app.whenReady().then(async () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow().catch((error) => {
-      console.error('Failed to recreate the AnticStore application window:', error);
+      console.error('Failed to recreate the Koru application window:', error);
       app.quit();
     });
   }

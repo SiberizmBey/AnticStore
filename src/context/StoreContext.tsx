@@ -67,7 +67,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     platform: 'web',
     arch: 'x64',
     appVersion: '1.0.0',
-    packageId: 'com.anticvalley.store',
+    packageId: 'com.anticvalley.koru',
   });
   const [officialSource, setOfficialSource] = useState<CatalogSource>({
     id: 'official-anticstore',
@@ -195,7 +195,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     async (token: string) => {
       const desktop = window.anticStoreDesktop;
       if (!desktop) {
-        throw new Error('GitHub anahtarı yalnızca AnticStore masaüstü uygulamasında güvenle saklanabilir.');
+        throw new Error('GitHub anahtarı yalnızca Koru masaüstü uygulamasında güvenle saklanabilir.');
       }
       await desktop.saveGitHubToken(token);
       setGitHubTokenConfigured(true);
@@ -207,7 +207,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const clearGitHubToken = useCallback(async () => {
     const desktop = window.anticStoreDesktop;
     if (!desktop) {
-      throw new Error('GitHub anahtarı yalnızca AnticStore masaüstü uygulamasında yönetilebilir.');
+      throw new Error('GitHub anahtarı yalnızca Koru masaüstü uygulamasında yönetilebilir.');
     }
     await desktop.clearGitHubToken();
     const status = await desktop.getGitHubTokenStatus();
@@ -451,7 +451,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     return {
       launched: false,
-      message: `Web önizleme modunda "${existing.installerPath || app.name}" dosyası tarayıcınız tarafından indirildi. Doğrudan başlatma ve tek tıkla kurulum için AnticStore Masaüstü uygulamasını kullanın.`,
+      message: `Web önizleme modunda "${existing.installerPath || app.name}" dosyası tarayıcınız tarafından indirildi. Doğrudan başlatma ve tek tıkla kurulum için Koru Masaüstü uygulamasını kullanın.`,
     };
   };
 

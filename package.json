@@ -1,8 +1,8 @@
 {
-    "name": "anticstore",
-    "author": "com.anticvalley.store",
+    "name": "koru",
+    "author": "Siberizm",
     "private": true,
-    "version": "1.0.3",
+    "version": "1.0.5",
     "type": "module",
     "main": "desktop/main.cjs",
     "scripts": {
@@ -17,8 +17,8 @@
         "lint": "tsc --noEmit"
     },
     "build": {
-        "appId": "com.anticvalley.store",
-        "productName": "AnticStore",
+        "appId": "com.anticvalley.koru",
+        "productName": "Koru",
         "directories": {
             "output": "release"
         },
@@ -42,7 +42,7 @@
             "runAfterFinish": true,
             "createDesktopShortcut": true,
             "createStartMenuShortcut": true,
-            "shortcutName": "AnticStore"
+            "shortcutName": "Koru"
         }
     },
     "dependencies": {

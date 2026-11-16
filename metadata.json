@@ -1,6 +1,6 @@
 {
-  "name": "Remix Koza",
-  "description": "Imported from GitHub: SiberizmBey/Koza",
+  "name": "Koru",
+  "description": "Koru (com.anticvalley.koru) — Antic Valley uygulamalarını doğrudan indirin, kurun, güncelleyin ve yönetin.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

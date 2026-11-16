@@ -10,7 +10,7 @@ import { AppDetailModal } from './components/AppDetailModal';
 import { useStore } from './context/StoreContext';
 import type { StoreApp } from './types';
 
-function AnticStoreShell() {
+function KoruShell() {
   const [currentTab, setCurrentTab] = useState<NavTab>('store');
   const [selectedApp, setSelectedApp] = useState<StoreApp | null>(null);
   const { apps } = useStore();
@@ -70,7 +70,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <StoreProvider>
-        <AnticStoreShell />
+        <KoruShell />
       </StoreProvider>
     </ThemeProvider>
   );

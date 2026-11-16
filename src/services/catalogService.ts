@@ -287,8 +287,8 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
     name: entry.name || entry.id,
     developer: entry.developer || 'Antic Valley',
     category: entry.category || 'Araçlar',
-    summary: entry.summary || 'AnticStore uygulaması',
-    description: entry.description || entry.summary || 'AnticStore kataloğundan sunulan uygulama.',
+    summary: entry.summary || 'Koru uygulaması',
+    description: entry.description || entry.summary || 'Koru kataloğundan sunulan uygulama.',
     iconUrl: entry.iconUrl,
     screenshots: Array.isArray(entry.screenshots)
       ? entry.screenshots.filter((url): url is string => typeof url === 'string')

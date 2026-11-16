@@ -29,6 +29,7 @@ html.amoled {
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
   --accent: #982376;
+  --accent-rgb: 180, 74, 146;
   --accent-hover: #7e1c62;
   --accent-active: #65144e;
   --accent-subtle: rgba(152, 35, 118, 0.18);
@@ -74,6 +75,7 @@ html.dark {
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
   --accent: #982376;
+  --accent-rgb: 180, 74, 146;
   --accent-hover: #7e1c62;
   --accent-active: #65144e;
   --accent-subtle: rgba(152, 35, 118, 0.18);
@@ -119,6 +121,7 @@ html.light {
   --text-secondary: #52525b;
   --text-muted: #71717a;
   --accent: #861e68;
+  --accent-rgb: 180, 74, 146;
   --accent-hover: #6e1655;
   --accent-active: #571043;
   --accent-subtle: rgba(134, 30, 104, 0.11);
@@ -309,4 +312,78 @@ a:focus-visible {
   border-radius: 0 !important;
   padding-top: 4px !important;
   padding-bottom: 4px !important;
+}
+
+/* Windows 11 Setup-inspired Theme Spotlight Card (Borderless) */
+.card-update-spotlight {
+  border: none !important;
+  box-shadow:
+    0 14px 40px -14px rgba(var(--accent-rgb), 0.34),
+    0 4px 18px -6px rgba(var(--accent-rgb), 0.18);
+}
+
+.card-update-spotlight:hover {
+  box-shadow:
+    0 18px 46px -12px rgba(var(--accent-rgb), 0.44),
+    0 6px 22px -6px rgba(var(--accent-rgb), 0.25);
+}
+
+html[data-theme="light"] .card-update-spotlight {
+  box-shadow:
+    0 14px 38px -14px rgba(var(--accent-rgb), 0.24),
+    0 4px 16px -6px rgba(var(--accent-rgb), 0.14);
+}
+
+html[data-theme="light"] .card-update-spotlight:hover {
+  box-shadow:
+    0 18px 44px -12px rgba(var(--accent-rgb), 0.32),
+    0 6px 20px -6px rgba(var(--accent-rgb), 0.18);
+}
+
+.card-update-spotlight-aura {
+  background:
+    radial-gradient(
+      95% 85% at 15% 0%,
+      rgba(var(--accent-rgb), 0.28) 0%,
+      rgba(var(--accent-rgb), 0.10) 42%,
+      transparent 76%
+    ),
+    radial-gradient(
+      70% 65% at 92% 100%,
+      rgba(var(--accent-rgb), 0.18) 0%,
+      transparent 70%
+    );
+}
+
+html[data-theme="light"] .card-update-spotlight-aura {
+  background:
+    radial-gradient(
+      95% 85% at 15% 0%,
+      rgba(var(--accent-rgb), 0.16) 0%,
+      rgba(var(--accent-rgb), 0.06) 44%,
+      transparent 76%
+    ),
+    radial-gradient(
+      70% 65% at 92% 100%,
+      rgba(var(--accent-rgb), 0.11) 0%,
+      transparent 70%
+    );
+}
+
+.card-update-spotlight-cursor {
+  background: radial-gradient(
+    320px circle at var(--spot-x, 50%) var(--spot-y, 20%),
+    rgba(var(--accent-rgb), 0.24),
+    rgba(var(--accent-rgb), 0.07) 45%,
+    transparent 75%
+  );
+}
+
+html[data-theme="light"] .card-update-spotlight-cursor {
+  background: radial-gradient(
+    320px circle at var(--spot-x, 50%) var(--spot-y, 20%),
+    rgba(var(--accent-rgb), 0.15),
+    rgba(var(--accent-rgb), 0.04) 45%,
+    transparent 75%
+  );
 }

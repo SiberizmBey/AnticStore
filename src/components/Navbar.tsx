@@ -52,19 +52,19 @@ export function Navbar({ currentTab, onSelectTab }: NavbarProps) {
         <button
           type="button"
           onClick={() => onSelectTab('store')}
-          title="AnticStore Ana Sayfa"
+          title="Koru Ana Sayfa"
           className="koza-nav-capsule flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-full bg-island border border-subtle shadow-sm shrink-0 transition-colors cursor-pointer hover:border-hover"
         >
           <div className="w-7 h-7 rounded-full bg-card border border-subtle flex items-center justify-center shrink-0 overflow-hidden p-0.5">
             <img
               src={`${import.meta.env.BASE_URL}assets/aistudio/anticstore_edaa22f1.png`}
-              alt="AnticStore"
+              alt="Koru"
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"
             />
           </div>
           <span className="font-bold text-xs tracking-tight text-primary pr-0.5 whitespace-nowrap shrink-0">
-            AnticStore
+            Koru
           </span>
         </button>
 

@@ -40,7 +40,7 @@ export function SettingsView() {
                 <HardDriveDownload className="w-6 h-6 accent-text" />
               </div>
               <div>
-                <h2 className="text-base font-bold text-primary">AnticStore Kurulum Motoru</h2>
+                <h2 className="text-base font-bold text-primary">Koru Kurulum Motoru</h2>
                 <p className="text-xs text-muted">
                   Paket: <span className="font-mono text-secondary">{platformInfo.packageId}</span> · Katalog:{' '}
                   <span className="font-mono text-secondary">{officialSource.value}</span>

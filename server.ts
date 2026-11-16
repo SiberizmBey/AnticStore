@@ -62,7 +62,7 @@ function isSafeHttpsUrl(rawUrl: string): boolean {
 
 function githubHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
-    'User-Agent': 'AnticStore/1.0 (com.anticvalley.store)',
+    'User-Agent': 'Koru/1.0 (com.anticvalley.koru)',
     Accept: 'application/vnd.github+json',
   };
   if (process.env.GITHUB_TOKEN) {
@@ -100,7 +100,7 @@ async function resolveGitHubIconUrl(owner: string, repo: string, branch: string)
 
   for (const candidate of candidates) {
     try {
-      const res = await fetch(candidate, { method: 'HEAD', headers: { 'User-Agent': 'AnticStore/1.0' } });
+      const res = await fetch(candidate, { method: 'HEAD', headers: { 'User-Agent': 'Koru/1.0' } });
       if (res.ok) {
         setCached(cacheKey, candidate, 5 * 60_000);
         return candidate;
@@ -126,7 +126,7 @@ async function buildGitHubRepoBundle(owner: string, repo: string) {
   try {
     const pkgRes = await fetch(
       `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/package.json`,
-      { headers: { 'User-Agent': 'AnticStore/1.0' } }
+      { headers: { 'User-Agent': 'Koru/1.0' } }
     );
     if (pkgRes.ok) {
       packageJson = (await pkgRes.json()) as Record<string, unknown>;
@@ -139,7 +139,7 @@ async function buildGitHubRepoBundle(owner: string, repo: string) {
   try {
     const manifestRes = await fetch(
       `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/anticstore.json`,
-      { headers: { 'User-Agent': 'AnticStore/1.0' } }
+      { headers: { 'User-Agent': 'Koru/1.0' } }
     );
     if (manifestRes.ok) {
       anticManifest = (await manifestRes.json()) as Record<string, unknown>;
@@ -169,7 +169,7 @@ async function createServer() {
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/api/health', (_req: Request, res: Response) => {
-    res.json({ ok: true, service: 'AnticStore', packageId: 'com.anticvalley.store' });
+    res.json({ ok: true, service: 'Koru', packageId: 'com.anticvalley.koru' });
   });
 
   app.get('/api/catalog/official', async (_req: Request, res: Response) => {
@@ -189,7 +189,7 @@ async function createServer() {
     for (const candidate of remoteCandidates) {
       try {
         const upstream = await fetch(candidate, {
-          headers: { 'User-Agent': 'AnticStore/1.0', Accept: 'application/json' },
+          headers: { 'User-Agent': 'Koru/1.0', Accept: 'application/json' },
         });
         if (upstream.ok) {
           const data = (await upstream.json()) as Record<string, unknown>;
@@ -291,7 +291,7 @@ async function createServer() {
 
       const response = await fetch(rawUrl, {
         headers: {
-          'User-Agent': 'AnticStore/1.0',
+          'User-Agent': 'Koru/1.0',
           Accept: 'application/json',
         },
       });
@@ -320,7 +320,7 @@ async function createServer() {
 
     try {
       const upstream = await fetch(rawUrl, {
-        headers: { 'User-Agent': 'AnticStore/1.0' },
+        headers: { 'User-Agent': 'Koru/1.0' },
         redirect: 'follow',
       });
 
@@ -376,11 +376,11 @@ async function createServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`AnticStore server listening on http://localhost:${PORT}`);
+    console.log(`Koru server listening on http://localhost:${PORT}`);
   });
 }
 
 createServer().catch((err) => {
-  console.error('Failed to start AnticStore server:', err);
+  console.error('Failed to start Koru server:', err);
   process.exit(1);
 });

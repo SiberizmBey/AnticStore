@@ -65,17 +65,39 @@ export function AppCard({ app, onSelect }: AppCardProps) {
     void installApp(app);
   };
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!hasUpdate) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
+    e.currentTarget.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
+  };
+
   return (
     <motion.div
       whileHover={{ y: -3 }}
       whileTap={{ scale: 0.99 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
       onClick={() => onSelect(app)}
-      className={`group relative flex flex-col justify-between p-5 rounded-3xl bg-card border ${
-        hasUpdate ? 'accent-border shadow-sm' : 'border-card'
-      } hover:border-hover hover:bg-card-hover transition-all duration-150 cursor-pointer select-none`}
+      onMouseMove={handleMouseMove}
+      className={`group relative overflow-hidden flex flex-col justify-between p-5 rounded-3xl bg-card ${
+        hasUpdate
+          ? 'card-update-spotlight'
+          : 'border border-card hover:border-hover'
+      } hover:bg-card-hover transition-all duration-150 cursor-pointer select-none`}
     >
-      <div>
+      {hasUpdate && (
+        <>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 card-update-spotlight-aura transition-opacity duration-300"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 card-update-spotlight-cursor transition-opacity duration-300"
+          />
+        </>
+      )}
+      <div className="relative z-10">
         {/* Card Header */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-3 min-w-0">
@@ -158,7 +180,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       </div>
 
       {/* Card Footer */}
-      <div className="pt-3 border-t border-subtle flex items-center justify-between gap-2">
+      <div className="relative z-10 pt-3 border-t border-subtle flex items-center justify-between gap-2">
         <div className="text-[11px] font-medium truncate">
           {hasUpdate ? (
             <span className="accent-text font-semibold tabular-nums flex items-center gap-1.5">

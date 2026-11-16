@@ -94,7 +94,7 @@ export function GitHubTokenCard({
             </p>
             {!platformInfo.isDesktop && (
               <p className="text-[11px] text-muted">
-                Anahtar yönetimi AnticStore masaüstü uygulamasında kullanılabilir.
+                Anahtar yönetimi Koru masaüstü uygulamasında kullanılabilir.
               </p>
             )}
             {message && (
