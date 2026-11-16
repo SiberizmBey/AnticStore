@@ -42,7 +42,8 @@
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpi.png",
             "websiteUrl": "https://github.com/SiberizmBey/Kirpi",
             "screenshots": [
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/kirpimainpage.png"
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/kirpimainpage.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png"
             ],
             "githubRepo": "SiberizmBey/Kirpi",
             "featured": true,
@@ -58,6 +59,7 @@
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
             "websiteUrl": "https://github.com/SiberizmBey/Lir",
             "screenshots": [
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png",
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lirmainpage.png"
             ],
             "githubRepo": "SiberizmBey/Lir",
