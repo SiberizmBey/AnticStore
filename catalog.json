@@ -28,6 +28,27 @@
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
         {
+            "id": "com.anticvalley.lir",
+            "name": "Lir",
+            "developer": "SiberizmBey",
+            "category": "Ses & Medya",
+            "summary": "Soundpad muadili açık kaynaklı ses paneli",
+            "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
+            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
+            "websiteUrl": "https://lir.anticvalley.com.tr",
+            "screenshots": [
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir1.png"
+            ],
+            "githubRepo": "SiberizmBey/Lir",
+            "featured": true,
+            "new": true,
+            "downloadable": true,
+            "announcedAt": "09.01.2026",
+            "releaseDate": "11.14.2026",
+            "upcomingUpdateDate": "",
+            "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]
+        },
+        {
             "id": "com.anticvalley.kirpisolingen.stable",
             "name": "Kirpi: SG",
             "developer": "SiberizmBey",
@@ -66,27 +87,6 @@
             "releaseDate": "09.01.2026",
             "upcomingUpdateDate": "",
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
-        },
-        {
-            "id": "com.anticvalley.lir",
-            "name": "Lir",
-            "developer": "SiberizmBey",
-            "category": "Ses & Medya",
-            "summary": "Soundpad muadili açık kaynaklı ses paneli",
-            "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
-            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
-            "websiteUrl": "https://lir.anticvalley.com.tr",
-            "screenshots": [
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir1.png"
-            ],
-            "githubRepo": "SiberizmBey/Lir",
-            "featured": true,
-            "new": false,
-            "downloadable": true,
-            "announcedAt": "09.01.2026",
-            "releaseDate": "11.14.2026",
-            "upcomingUpdateDate": "",
-            "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]
         }
     ]
 }
