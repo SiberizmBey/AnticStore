@@ -5,15 +5,29 @@ import type {
   InstallMode,
   InstalledAppRecord,
   PlatformInfo,
+  SignalsManifest,
   StoreApp,
   StoreAsset,
   StoreRelease,
 } from '../types';
-import { OFFICIAL_STORE_REPO, syncOfficialCatalog } from '../services/catalogService';
+import { OFFICIAL_STORE_REPO, syncOfficialCatalog, syncOfficialSignals } from '../services/catalogService';
+import { preloadMediaUrls } from '../services/mediaCache';
 import { isUpdateAvailable, pickPreferredAsset } from '../utils/semver';
 
 const WEB_INSTALLED_STORAGE_KEY = 'anticstore_web_installed_v1';
 const INSTALL_MODE_STORAGE_KEY = 'anticstore_install_mode_v1';
+const SEEN_SIGNALS_STORAGE_KEY = 'koru_seen_signals_v1';
+
+function loadSeenSignalIds(): string[] {
+  try {
+    const raw = localStorage.getItem(SEEN_SIGNALS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function loadWebInstalled(): Record<string, InstalledAppRecord> {
   try {
@@ -42,8 +56,14 @@ interface StoreContextType {
   installMode: InstallMode;
   updatableApps: StoreApp[];
   installedApps: StoreApp[];
+  signalsFeed: SignalsManifest;
+  isSyncingSignals: boolean;
+  signalsError: string | null;
+  unreadSignalsCount: number;
   setInstallMode: (mode: InstallMode) => void;
   syncCatalog: () => Promise<void>;
+  syncSignals: (forceRefresh?: boolean) => Promise<void>;
+  markSignalsAsRead: () => void;
   saveGitHubToken: (token: string) => Promise<void>;
   clearGitHubToken: () => Promise<void>;
   installApp: (
@@ -91,6 +111,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(true);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [signalsFeed, setSignalsFeed] = useState<SignalsManifest>({
+    headerLabel: 'ANTIC VALLEY / SİNYAL',
+    eyebrow: 'GÜNCEL YAYIN',
+    title: 'Not defteri',
+    footerNote: 'YENİ NOTLAR BURADA YAYINLANIR',
+    signals: [],
+  });
+  const [isSyncingSignals, setIsSyncingSignals] = useState<boolean>(true);
+  const [signalsError, setSignalsError] = useState<string | null>(null);
+  const [seenSignalIds, setSeenSignalIds] = useState<string[]>(() => loadSeenSignalIds());
   const [installMode, setInstallModeState] = useState<InstallMode>(() => {
     const saved = localStorage.getItem(INSTALL_MODE_STORAGE_KEY);
     return saved === 'silent' ? 'silent' : 'interactive';
@@ -99,6 +129,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const webAbortControllers = useRef<Map<string, AbortController>>(new Map());
   const catalogSyncInProgress = useRef(false);
   const catalogSyncRequested = useRef(false);
+  const signalsSyncInProgress = useRef(false);
 
   const setInstallMode = (mode: InstallMode) => {
     setInstallModeState(mode);
@@ -152,7 +183,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return unsubscribe;
   }, [refreshInstalled]);
 
+  const syncSignals = useCallback(async (forceRefresh = false) => {
+    if (signalsSyncInProgress.current) return;
+    signalsSyncInProgress.current = true;
+    setIsSyncingSignals(true);
+    setSignalsError(null);
+    try {
+      const feed = await syncOfficialSignals(forceRefresh);
+      setSignalsFeed(feed);
+    } catch (err) {
+      setSignalsError(err instanceof Error ? err.message : 'Sinyal akışı alınamadı.');
+    } finally {
+      signalsSyncInProgress.current = false;
+      setIsSyncingSignals(false);
+    }
+  }, []);
+
+  const markSignalsAsRead = useCallback(() => {
+    const ids = signalsFeed.signals.map((s) => s.id);
+    if (ids.length === 0) return;
+    setSeenSignalIds((prev) => {
+      const merged = Array.from(new Set([...prev, ...ids]));
+      try {
+        localStorage.setItem(SEEN_SIGNALS_STORAGE_KEY, JSON.stringify(merged));
+      } catch {
+        // Ignore storage quota errors
+      }
+      return merged;
+    });
+  }, [signalsFeed.signals]);
+
+  const unreadSignalsCount = useMemo(
+    () => signalsFeed.signals.filter((s) => !seenSignalIds.includes(s.id)).length,
+    [signalsFeed.signals, seenSignalIds]
+  );
+
   const syncCatalog = useCallback(async () => {
+    void syncSignals(true);
     if (catalogSyncInProgress.current) {
       catalogSyncRequested.current = true;
       return;
@@ -166,10 +233,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setSyncError(null);
 
         try {
-          const { apps: syncedApps, source } = await syncOfficialCatalog();
+          const { apps: syncedApps, source } = await syncOfficialCatalog(true);
           setApps(syncedApps);
           setOfficialSource(source);
           setLastSyncedAt(new Date().toISOString());
+          void preloadMediaUrls(syncedApps.map((a) => a.iconUrl));
           await refreshInstalled(syncedApps);
         } catch (err) {
           setSyncError(err instanceof Error ? err.message : 'Katalog senkronizasyonu başarısız.');
@@ -179,7 +247,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       catalogSyncInProgress.current = false;
       setIsSyncing(false);
     }
-  }, [refreshInstalled]);
+  }, [refreshInstalled, syncSignals]);
 
   useEffect(() => {
     void syncCatalog();
@@ -507,8 +575,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         installMode,
         updatableApps,
         installedApps,
+        signalsFeed,
+        isSyncingSignals,
+        signalsError,
+        unreadSignalsCount,
         setInstallMode,
         syncCatalog,
+        syncSignals,
+        markSignalsAsRead,
         saveGitHubToken,
         clearGitHubToken,
         installApp,

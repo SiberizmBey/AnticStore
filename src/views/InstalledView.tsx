@@ -33,7 +33,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
   } = useStore();
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 w-full">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl border accent-border accent-subtle p-2.5 accent-text">
@@ -147,7 +147,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           {installedApps.map((app) => {
             const inst = installedMap[app.id];
             const task = tasks[app.id];

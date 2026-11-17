@@ -18,18 +18,27 @@ function KoruShell() {
     ? apps.find((app) => app.id === selectedApp.id) || selectedApp
     : null;
 
+  const handleSelectAppById = (appId: string) => {
+    const found = apps.find((app) => app.id === appId);
+    if (found) {
+      setSelectedApp(found);
+      setCurrentTab('store');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-canvas text-primary flex flex-col transition-colors duration-200">
       <Navbar
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
+        onSelectAppById={handleSelectAppById}
       />
 
       <main
-        className={`flex-1 w-full mx-auto pt-1 ${
+        className={`flex-1 w-full mx-auto pt-2 ${
           currentTab === 'settings'
-            ? 'max-w-7xl px-[10px] pb-[10px]'
-            : 'max-w-7xl px-4 sm:px-6 pb-16'
+            ? 'px-3 sm:px-6 lg:px-8 pb-6'
+            : 'px-3 sm:px-6 lg:px-8 pb-16'
         }`}
       >
         <AnimatePresence mode="wait">

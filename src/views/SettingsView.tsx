@@ -28,8 +28,8 @@ export function SettingsView() {
   } = useStore();
 
   return (
-    <div className="w-full flex flex-col justify-between min-h-full">
-      <div className="max-w-4xl w-full mx-auto space-y-6 mb-8">
+    <div className="w-full flex flex-col justify-between min-h-full gap-8">
+      <div className="w-full space-y-6">
         {githubTokenStatusLoaded && githubTokenConfigured && <GitHubTokenCard />}
 
         {/* Store & Installer Preferences */}
@@ -224,7 +224,7 @@ export function SettingsView() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
             {(
               Object.entries(ACCENT_PALETTES) as [
                 AccentColor,

@@ -2,11 +2,14 @@ import type {
   CatalogAppEntry,
   CatalogSource,
   RemoteCatalogManifest,
+  SignalEntry,
+  SignalsManifest,
   StoreApp,
   StoreAsset,
   StoreRelease,
 } from '../types';
 import bundledCatalog from '../../catalog.json';
+import bundledSignals from '../../signals.json';
 import { cleanVersion, detectAssetMeta } from '../utils/semver';
 
 export const OFFICIAL_STORE_REPO = 'SiberizmBey/AnticStore';
@@ -74,7 +77,7 @@ async function fetchJsonSmart<T>(url: string): Promise<T> {
   if (window.anticStoreDesktop) {
     return window.anticStoreDesktop.fetchJson<T>(url);
   }
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) {
     const errBody = await res.json().catch(() => ({}));
     throw new Error((errBody as { error?: string }).error || `İstek başarısız (${res.status})`);
@@ -327,13 +330,15 @@ async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
   return bundledCatalog as RemoteCatalogManifest;
 }
 
-export async function syncOfficialCatalog(): Promise<{
+export async function syncOfficialCatalog(forceRefresh = false): Promise<{
   apps: StoreApp[];
   source: CatalogSource;
 }> {
   const manifest = window.anticStoreDesktop
     ? await fetchOfficialManifestDesktop()
-    : await fetchJsonSmart<RemoteCatalogManifest>('/api/catalog/official');
+    : await fetchJsonSmart<RemoteCatalogManifest>(
+        forceRefresh ? '/api/catalog/official?refresh=1' : '/api/catalog/official'
+      );
 
   if (!manifest || !Array.isArray(manifest.apps)) {
     throw new Error('Resmi katalog JSON formatı geçersiz.');
@@ -376,4 +381,80 @@ export async function syncOfficialCatalog(): Promise<{
       appCount: apps.length,
     },
   };
+}
+
+function normalizeSignalsManifest(raw: Partial<SignalsManifest>): SignalsManifest {
+  const signals: SignalEntry[] = Array.isArray(raw.signals)
+    ? raw.signals
+        .filter((item): item is SignalEntry => Boolean(item && typeof item.title === 'string'))
+        .map((item, idx) => ({
+          id: String(item.id || item.code || `signal-${idx + 1}`),
+          code: typeof item.code === 'string' ? item.code : undefined,
+          badge: typeof item.badge === 'string' ? item.badge : undefined,
+          title: item.title,
+          summary: typeof item.summary === 'string' ? item.summary : '',
+          category: typeof item.category === 'string' ? item.category : undefined,
+          publishedAt: typeof item.publishedAt === 'string' ? item.publishedAt : undefined,
+          url: typeof item.url === 'string' ? item.url : undefined,
+          appId: typeof item.appId === 'string' ? item.appId : undefined,
+        }))
+    : [];
+
+  return {
+    schemaVersion: raw.schemaVersion ?? 1,
+    headerLabel: raw.headerLabel || 'ANTIC VALLEY / SİNYAL',
+    eyebrow: raw.eyebrow || 'GÜNCEL YAYIN',
+    title: raw.title || 'Not defteri',
+    footerNote: raw.footerNote || 'YENİ NOTLAR BURADA YAYINLANIR',
+    updatedAt: raw.updatedAt,
+    signals,
+  };
+}
+
+async function fetchOfficialSignalsDesktop(): Promise<SignalsManifest> {
+  const desktop = window.anticStoreDesktop!;
+  const ts = Date.now();
+  const signalCandidates = [
+    `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/signals.json?t=${ts}`,
+    `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/master/signals.json?t=${ts}`,
+  ];
+
+  for (const url of signalCandidates) {
+    try {
+      const data = await desktop.fetchJson<SignalsManifest>(url);
+      if (data && Array.isArray(data.signals)) {
+        return normalizeSignalsManifest(data);
+      }
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  const catalogCandidates = [
+    `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/catalog.json?t=${ts}`,
+    `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/master/catalog.json?t=${ts}`,
+  ];
+
+  for (const url of catalogCandidates) {
+    try {
+      const data = await desktop.fetchJson<RemoteCatalogManifest>(url);
+      if (data && Array.isArray(data.signals) && data.signals.length > 0) {
+        return normalizeSignalsManifest({ signals: data.signals, updatedAt: data.updatedAt });
+      }
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  return normalizeSignalsManifest(bundledSignals as SignalsManifest);
+}
+
+export async function syncOfficialSignals(forceRefresh = false): Promise<SignalsManifest> {
+  if (window.anticStoreDesktop) {
+    return fetchOfficialSignalsDesktop();
+  }
+  const raw = await fetchJsonSmart<SignalsManifest>(
+    forceRefresh ? '/api/signals/official?refresh=1' : '/api/signals/official'
+  );
+  return normalizeSignalsManifest(raw);
 }

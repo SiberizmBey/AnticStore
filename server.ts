@@ -18,6 +18,29 @@ interface CacheEntry {
 const apiCache = new Map<string, CacheEntry>();
 const CACHE_TTL_MS = 60_000;
 
+interface MediaCacheEntry {
+  buffer: Buffer;
+  contentType: string;
+  etag?: string;
+  lastModified?: string;
+  checkedAt: number;
+}
+
+const mediaCache = new Map<string, MediaCacheEntry>();
+const MEDIA_REVALIDATE_MS = 5 * 60_000;
+const MAX_MEDIA_CACHE_ENTRIES = 120;
+const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
+
+function setMediaCached(url: string, entry: MediaCacheEntry): void {
+  if (mediaCache.has(url)) {
+    mediaCache.delete(url);
+  } else if (mediaCache.size >= MAX_MEDIA_CACHE_ENTRIES) {
+    const oldestKey = mediaCache.keys().next().value;
+    if (oldestKey) mediaCache.delete(oldestKey);
+  }
+  mediaCache.set(url, entry);
+}
+
 function getCached(key: string): unknown | null {
   const entry = apiCache.get(key);
   if (!entry) return null;
@@ -172,9 +195,10 @@ async function createServer() {
     res.json({ ok: true, service: 'Koru', packageId: 'com.anticvalley.koru' });
   });
 
-  app.get('/api/catalog/official', async (_req: Request, res: Response) => {
+  app.get('/api/catalog/official', async (req: Request, res: Response) => {
     const cacheKey = 'official:SiberizmBey/AnticStore';
-    const cached = getCached(cacheKey);
+    const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+    const cached = forceRefresh ? null : getCached(cacheKey);
     if (cached) {
       res.json(cached);
       return;
@@ -219,6 +243,102 @@ async function createServer() {
     }
 
     res.status(404).json({ error: 'Resmi katalog bulunamadı.' });
+  });
+
+  app.get('/api/signals/official', async (req: Request, res: Response) => {
+    const cacheKey = 'signals:SiberizmBey/AnticStore';
+    const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+    const cached = forceRefresh ? null : getCached(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
+
+    const cacheBuster = Date.now();
+    const remoteSignalCandidates = [
+      `https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/signals.json?t=${cacheBuster}`,
+      `https://raw.githubusercontent.com/SiberizmBey/AnticStore/master/signals.json?t=${cacheBuster}`,
+    ];
+
+    for (const candidate of remoteSignalCandidates) {
+      try {
+        const upstream = await fetch(candidate, {
+          headers: { 'User-Agent': 'Koru/1.0', Accept: 'application/json' },
+        });
+        if (upstream.ok) {
+          const data = (await upstream.json()) as Record<string, unknown>;
+          if (data && Array.isArray(data.signals)) {
+            const payload = { ...data, _source: candidate };
+            setCached(cacheKey, payload, 15_000);
+            res.json(payload);
+            return;
+          }
+        }
+      } catch {
+        // Try next candidate
+      }
+    }
+
+    // Also check if remote catalog.json includes a signals array
+    const remoteCatalogCandidates = [
+      `https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/catalog.json?t=${cacheBuster}`,
+      `https://raw.githubusercontent.com/SiberizmBey/AnticStore/master/catalog.json?t=${cacheBuster}`,
+    ];
+
+    for (const candidate of remoteCatalogCandidates) {
+      try {
+        const upstream = await fetch(candidate, {
+          headers: { 'User-Agent': 'Koru/1.0', Accept: 'application/json' },
+        });
+        if (upstream.ok) {
+          const data = (await upstream.json()) as Record<string, unknown>;
+          if (data && Array.isArray(data.signals) && data.signals.length > 0) {
+            const payload = {
+              schemaVersion: data.schemaVersion,
+              updatedAt: data.updatedAt,
+              signals: data.signals,
+              _source: candidate,
+            };
+            setCached(cacheKey, payload, 15_000);
+            res.json(payload);
+            return;
+          }
+        }
+      } catch {
+        // Try next candidate
+      }
+    }
+
+    // Dynamic local fallback from signals.json or catalog.json (no build required)
+    const localSignalsPath = path.join(__dirname, 'signals.json');
+    if (fs.existsSync(localSignalsPath)) {
+      try {
+        const raw = fs.readFileSync(localSignalsPath, 'utf8');
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed && Array.isArray(parsed.signals)) {
+          res.json({ ...parsed, _source: 'local-signals' });
+          return;
+        }
+      } catch {
+        // Fall through to local catalog
+      }
+    }
+
+    const localCatalogPath = path.join(__dirname, 'catalog.json');
+    if (fs.existsSync(localCatalogPath)) {
+      try {
+        const raw = fs.readFileSync(localCatalogPath, 'utf8');
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed && Array.isArray(parsed.signals)) {
+          res.json({ signals: parsed.signals, updatedAt: parsed.updatedAt, _source: 'local-catalog' });
+          return;
+        }
+      } catch {
+        // No signals found
+      }
+    }
+
+    res.status(404).json({ error: 'Sinyal akışı bulunamadı.' });
   });
 
   app.get('/api/github/repo', async (req: Request, res: Response) => {
@@ -305,6 +425,112 @@ async function createServer() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Uzak katalog JSON dosyası okunamadı.';
       res.status(502).json({ error: message });
+    }
+  });
+
+  app.get('/api/media', async (req: Request, res: Response) => {
+    const rawUrl = typeof req.query.url === 'string' ? req.query.url.trim() : '';
+    const forceRevalidate = req.query.revalidate === '1';
+    if (!isSafeHttpsUrl(rawUrl)) {
+      res.status(400).json({ error: 'Geçersiz medya adresi.' });
+      return;
+    }
+
+    const clientEtag =
+      typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined;
+    const clientLastModified =
+      typeof req.headers['if-modified-since'] === 'string'
+        ? req.headers['if-modified-since']
+        : undefined;
+
+    const sendMediaResponse = (entry: MediaCacheEntry) => {
+      res.setHeader('Access-Control-Expose-Headers', 'ETag, Last-Modified');
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      if (entry.etag) res.setHeader('ETag', entry.etag);
+      if (entry.lastModified) res.setHeader('Last-Modified', entry.lastModified);
+
+      const etagMatches = Boolean(clientEtag && entry.etag && clientEtag === entry.etag);
+      const modifiedMatches = Boolean(
+        !entry.etag &&
+          clientLastModified &&
+          entry.lastModified &&
+          clientLastModified === entry.lastModified
+      );
+
+      if (etagMatches || modifiedMatches) {
+        res.status(304).end();
+        return;
+      }
+
+      res.setHeader('Content-Type', entry.contentType);
+      res.setHeader('Content-Length', String(entry.buffer.byteLength));
+      res.status(200).send(entry.buffer);
+    };
+
+    const existing = mediaCache.get(rawUrl);
+    if (existing && !forceRevalidate && Date.now() - existing.checkedAt < MEDIA_REVALIDATE_MS) {
+      sendMediaResponse(existing);
+      return;
+    }
+
+    try {
+      const upstreamHeaders: Record<string, string> = {
+        'User-Agent': 'Koru/1.0',
+      };
+      if (existing?.etag) upstreamHeaders['If-None-Match'] = existing.etag;
+      if (existing?.lastModified) upstreamHeaders['If-Modified-Since'] = existing.lastModified;
+
+      const upstream = await fetch(rawUrl, {
+        headers: upstreamHeaders,
+        redirect: 'follow',
+      });
+
+      if (upstream.status === 304 && existing) {
+        existing.checkedAt = Date.now();
+        setMediaCached(rawUrl, existing);
+        sendMediaResponse(existing);
+        return;
+      }
+
+      if (!upstream.ok) {
+        if (existing) {
+          sendMediaResponse(existing);
+          return;
+        }
+        res.status(502).json({ error: `Medya alınamadı (${upstream.status}).` });
+        return;
+      }
+
+      const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+      if (!contentType.startsWith('image/') && !contentType.includes('octet-stream')) {
+        res.status(415).json({ error: 'Desteklenmeyen medya türü.' });
+        return;
+      }
+
+      const arrayBuf = await upstream.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+      const etag = upstream.headers.get('etag') || undefined;
+      const lastModified = upstream.headers.get('last-modified') || undefined;
+
+      const freshEntry: MediaCacheEntry = {
+        buffer,
+        contentType,
+        etag,
+        lastModified,
+        checkedAt: Date.now(),
+      };
+
+      if (buffer.byteLength <= MAX_MEDIA_BYTES) {
+        setMediaCached(rawUrl, freshEntry);
+      }
+
+      sendMediaResponse(freshEntry);
+    } catch {
+      if (existing) {
+        sendMediaResponse(existing);
+        return;
+      }
+      res.status(502).json({ error: 'Medya yüklenemedi.' });
     }
   });
 

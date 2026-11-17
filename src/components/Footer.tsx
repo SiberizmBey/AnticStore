@@ -37,7 +37,7 @@ const ECOSYSTEM_APPS: EcosystemApp[] = [
 
 export function Footer() {
   return (
-    <footer className="w-full max-w-[85%] md:max-w-[80%] mx-auto p-3.5 sm:p-4.5 lg:p-5 rounded-3xl bg-card border border-subtle transition-colors shadow-sm select-none">
+    <footer className="w-full p-4 sm:p-5 lg:p-6 rounded-3xl bg-card border border-subtle transition-colors shadow-sm select-none">
       {/* Top Header Row: Brand & Quick Links */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Left: Brand Identity Box */}

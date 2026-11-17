@@ -221,7 +221,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                 <h2 className="text-xl sm:text-2xl font-bold text-primary tracking-tight truncate">
                   {latestUpdatedApp.name}
                 </h2>
-                <p className="text-xs sm:text-sm text-secondary max-w-2xl leading-relaxed">
+                <p className="text-xs sm:text-sm text-secondary max-w-3xl leading-relaxed">
                   {latestUpdatedApp.description}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted font-mono tabular-nums pt-1">
@@ -315,7 +315,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
 
       {/* Search & View Mode Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-md">
+        <div className="relative flex-1 sm:max-w-md lg:max-w-lg">
           <Search className="w-4 h-4 text-muted absolute left-3.5 top-3" />
           <input
             type="text"
@@ -428,7 +428,10 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
           </button>
         </div>
       ) : viewMode === 'grid' ? (
-        <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <motion.div
+          layout
+          className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4"
+        >
           {filteredApps.map((app) => (
             <AppCard key={app.id} app={app} onSelect={onSelectApp} />
           ))}

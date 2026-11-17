@@ -1,0 +1,19 @@
+{
+    "schemaVersion": 1,
+    "headerLabel": "ANTIC VALLEY / SİNYAL",
+    "eyebrow": "GÜNCEL YAYIN",
+    "title": "Sinyaller",
+    "footerNote": "YENİ Sinyaller BURADA YAYINLANIR",
+    "updatedAt": "2026-11-17T09:00:00Z",
+    "signals": [
+        {
+            "id": "av-01",
+            "code": "AV-01",
+            "badge": "Test Sinyali",
+            "title": "Sinyal Sistemi",
+            "summary": "Sinyal sistemi, Koru üzerinden yayınlanan haberlerimizi ya da bildirilerimizi takip etmenizi sağlar. Bu sistem test aşamasındadır. Nihai stabil sürümde daha fazlası sunulabilir ya da bu özellik kaldırılabilir.",
+            "category": "Test",
+            "publishedAt": "2026-11-16T12:00:00Z"
+        }
+    ]
+}

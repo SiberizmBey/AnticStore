@@ -58,12 +58,35 @@ export interface CatalogAppEntry {
   platform?: PlatformKind;
 }
 
+export interface SignalEntry {
+  id: string;
+  code?: string;
+  badge?: string;
+  title: string;
+  summary: string;
+  category?: string;
+  publishedAt?: string;
+  url?: string;
+  appId?: string;
+}
+
+export interface SignalsManifest {
+  schemaVersion?: number;
+  headerLabel?: string;
+  eyebrow?: string;
+  title?: string;
+  footerNote?: string;
+  updatedAt?: string;
+  signals: SignalEntry[];
+}
+
 export interface RemoteCatalogManifest {
   schemaVersion?: number;
   storeName?: string;
   publisher?: string;
   updatedAt?: string;
   apps: CatalogAppEntry[];
+  signals?: SignalEntry[];
 }
 
 export interface StoreApp {

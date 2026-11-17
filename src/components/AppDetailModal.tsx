@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useStore } from '../context/StoreContext';
 import { AppIcon } from './AppIcon';
+import { ScreenshotGallery } from './ScreenshotGallery';
 import {
   compareSemver,
   formatBytes,
@@ -148,7 +149,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 16 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl bg-modal border border-subtle shadow-xl overflow-hidden"
+        className="relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-3xl bg-modal border border-subtle shadow-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -417,120 +418,106 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
             )}
           </div>
 
-          {/* Description */}
-          <div className="space-y-2">
-            <h3 className="text-xs font-bold text-primary uppercase tracking-wider">Hakkında</h3>
-            <p className="text-xs sm:text-sm text-secondary leading-relaxed">
-              {app.description}
-            </p>
-            <div className="space-y-2 pt-2">
+          {/* 2-Column Content: Screenshots (Left) + Hakkında & Version Picker (Right) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* Left Column: Screenshots */}
+            <div className="lg:col-span-7 space-y-2.5 min-w-0">
               <h4 className="text-[11px] font-bold text-secondary flex items-center gap-1.5">
                 <Image className="w-3.5 h-3.5 accent-text" />
                 <span>Ekran Görüntüleri</span>
               </h4>
-              {app.screenshots && app.screenshots.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {app.screenshots.map((screenshot, index) => (
-                    <button
-                      key={`${screenshot}-${index}`}
-                      type="button"
-                      onClick={() => handleOpenExternal(screenshot)}
-                      className="group overflow-hidden rounded-2xl border border-subtle bg-inner cursor-pointer"
-                      title="Ekran görüntüsünü aç"
-                    >
-                      <img
-                        src={`${screenshot}${screenshot.includes('?') ? '&' : '?'}anticstore=${encodeURIComponent(app.syncedAt)}`}
-                        alt={`${app.name} ekran görüntüsü ${index + 1}`}
-                        loading="lazy"
-                        className="aspect-video w-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
-                      />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-muted">
-                  Bu uygulama için henüz ekran görüntüsü eklenmemiş.
+              <ScreenshotGallery
+                appName={app.name}
+                screenshots={app.screenshots || []}
+                cacheKey={app.syncedAt}
+              />
+            </div>
+
+            {/* Right Column: Description + Version History / Release Picker */}
+            <div className="lg:col-span-5 space-y-4 min-w-0">
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-bold text-primary uppercase tracking-wider">Hakkında</h3>
+                <p className="text-xs sm:text-sm text-secondary leading-relaxed">
+                  {app.description}
                 </p>
-              )}
+              </div>
+              {app.releases.length > 0 ? (
+                <div className="p-4 rounded-2xl bg-card border border-subtle space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                      <Calendar className="w-4 h-4 accent-text shrink-0" />
+                      <span>Sürüm Seçimi ve Notlar</span>
+                    </div>
+
+                    <select
+                      value={selectedRelease?.tag || ''}
+                      onChange={(e) => setSelectedTag(e.target.value)}
+                      className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-input border border-input focus:border-accent text-xs font-mono text-primary"
+                    >
+                      {app.releases.map((rel) => (
+                        <option key={rel.tag} value={rel.tag}>
+                          {rel.tag} ({formatTurkishDate(rel.publishedAt)})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedRelease?.notes ? (
+                    <pre className="p-3 rounded-xl bg-inner border border-subtle text-xs text-secondary whitespace-pre-wrap font-sans leading-relaxed max-h-44 overflow-y-auto">
+                      {selectedRelease.notes}
+                    </pre>
+                  ) : (
+                    <p className="text-xs text-muted">
+                      {selectedRelease?.tag} sürümü için ek sürüm notu girilmemiş.
+                    </p>
+                  )}
+
+                  {/* Release Assets */}
+                  {selectedRelease && selectedRelease.assets.length > 0 && (
+                    <div className="space-y-2 pt-1">
+                      <span className="text-[11px] font-semibold text-muted block">
+                        Kurulum Dosyaları ({selectedRelease.assets.length})
+                      </span>
+                      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
+                        {selectedRelease.assets.map((asset) => (
+                          <div
+                            key={asset.name}
+                            className="flex items-center justify-between gap-2.5 p-2.5 rounded-xl bg-inner/70 border border-subtle text-xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileArchive className="w-4 h-4 accent-text shrink-0" />
+                              <div className="min-w-0">
+                                <span className="font-mono text-primary block truncate text-[11px]">
+                                  {asset.name}
+                                </span>
+                                <span className="text-[10px] text-muted font-mono tabular-nums">
+                                  {asset.platform} · {asset.installerType.toUpperCase()} ·{' '}
+                                  {asset.size > 0 ? formatBytes(asset.size) : 'Bilinmiyor'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              disabled={Boolean(task)}
+                              onClick={() => void handleAssetInstall(asset)}
+                              className="px-3 py-1.5 rounded-full bg-card hover:bg-card-hover border border-subtle text-[11px] font-semibold text-primary shrink-0 cursor-pointer disabled:opacity-40"
+                            >
+                              {platformInfo.isDesktop ? 'Kur' : 'İndir'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : !app.syncError ? (
+                <div className="p-4 rounded-2xl bg-card border border-subtle text-xs text-muted">
+                  Bu uygulama için GitHub’da yayınlanmış bir sürüm bulunamadı.
+                </div>
+              ) : null}
             </div>
           </div>
-
-          {/* Version History / Release Picker */}
-          {app.releases.length > 0 ? (
-            <div className="p-4 rounded-2xl bg-card border border-subtle space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-primary">
-                  <Calendar className="w-4 h-4 accent-text" />
-                  <span>Sürüm Seçimi ve Sürüm Notları</span>
-                </div>
-
-                <select
-                  value={selectedRelease?.tag || ''}
-                  onChange={(e) => setSelectedTag(e.target.value)}
-                  className="px-3 py-1.5 rounded-xl bg-input border border-input focus:border-accent text-xs font-mono text-primary"
-                >
-                  {app.releases.map((rel) => (
-                    <option key={rel.tag} value={rel.tag}>
-                      {rel.tag} ({formatTurkishDate(rel.publishedAt)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedRelease?.notes ? (
-                <pre className="p-3 rounded-xl bg-inner border border-subtle text-xs text-secondary whitespace-pre-wrap font-sans leading-relaxed max-h-40 overflow-y-auto">
-                  {selectedRelease.notes}
-                </pre>
-              ) : (
-                <p className="text-xs text-muted">
-                  {selectedRelease?.tag} sürümü için ek sürüm notu girilmemiş.
-                </p>
-              )}
-
-              {/* Release Assets */}
-              {selectedRelease && selectedRelease.assets.length > 0 && (
-                <div className="space-y-2 pt-1">
-                  <span className="text-[11px] font-semibold text-muted block">
-                    Kurulum Dosyaları ({selectedRelease.assets.length})
-                  </span>
-                  <div className="space-y-1.5">
-                    {selectedRelease.assets.map((asset) => (
-                      <div
-                        key={asset.name}
-                        className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-inner/70 border border-subtle text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileArchive className="w-4 h-4 accent-text shrink-0" />
-                          <div className="min-w-0">
-                            <span className="font-mono text-primary block truncate">
-                              {asset.name}
-                            </span>
-                            <span className="text-[10px] text-muted font-mono tabular-nums">
-                              {asset.platform} · {asset.installerType.toUpperCase()} ·{' '}
-                              {asset.size > 0 ? formatBytes(asset.size) : 'Bilinmiyor'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={Boolean(task)}
-                          onClick={() => void handleAssetInstall(asset)}
-                          className="px-3 py-1.5 rounded-full bg-card hover:bg-card-hover border border-subtle text-[11px] font-semibold text-primary shrink-0 cursor-pointer disabled:opacity-40"
-                        >
-                          {platformInfo.isDesktop ? 'Bu Paketi Kur' : 'İndir'}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : !app.syncError ? (
-            <div className="p-4 rounded-2xl bg-card border border-subtle text-xs text-muted">
-              Bu uygulama için GitHub’da yayınlanmış bir sürüm bulunamadı.
-            </div>
-          ) : null}
 
           {/* Source & Metadata Footer */}
           <div className="pt-2 text-[11px] text-muted flex flex-wrap items-center justify-between gap-2 border-t border-subtle">
