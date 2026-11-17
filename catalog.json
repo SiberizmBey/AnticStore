@@ -12,7 +12,7 @@
             "summary": "Kurtarma metodlarınızı unutmayın, Koza ile her zaman güvendesiniz.",
             "description": "Koza, açık kaynaklı bir şifre yöneticisi ve güvenlik uygulamasıdır. Şifrelerinizi güvenli bir şekilde saklamanıza, yönetmenize ve kurtarmanıza yardımcı olur. Ancak asıl amacımız kullanıcıların kurtarma metodlarını unutmamalarıdır. PBKDF2-SHA256 (100.000 Tur) şifreleme algoritması ile verilerinizi güvence altına alır ve kullanıcı dostu bir arayüz sunar.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/koza.png",
-            "websiteUrl": "https://koru.anticvalley.com.tr",
+            "websiteUrl": "https://koza.anticvalley.com.tr",
             "screenshots": [
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza1.png",
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza2.png",
