@@ -40,7 +40,7 @@
             "githubRepo": "SiberizmBey/KirpiFabrikaSolingen",
             "featured": true,
             "new": false,
-            "downloadable": false,
+            "downloadable": true,
             "announcedAt": "2026-09-10",
             "releaseDate": "",
             "upcomingUpdateDate": "",
