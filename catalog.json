@@ -5,31 +5,6 @@
     "updatedAt": "2026-11-15T14:15:00Z",
     "apps": [
         {
-            "id": "com.anticvalley.koza",
-            "name": "Koza",
-            "developer": "SiberizmBey",
-            "category": "Güvenlik & Gizlilik",
-            "summary": "Kurtarma metodlarınızı unutmayın, Koza ile her zaman güvendesiniz.",
-            "description": "Koza, açık kaynaklı bir şifre yöneticisi ve güvenlik uygulamasıdır. Şifrelerinizi güvenli bir şekilde saklamanıza, yönetmenize ve kurtarmanıza yardımcı olur. Ancak asıl amacımız kullanıcıların kurtarma metodlarını unutmamalarıdır. PBKDF2-SHA256 (100.000 Tur) şifreleme algoritması ile verilerinizi güvence altına alır ve kullanıcı dostu bir arayüz sunar.",
-            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/koza.png",
-            "websiteUrl": "https://koza.anticvalley.com.tr",
-            "screenshots": [
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza1.png",
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza2.png",
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza3.png",
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza4.png",
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza5.png"
-            ],
-            "githubRepo": "SiberizmBey/Koza",
-            "featured": true,
-            "new": false,
-            "downloadable": false,
-            "announcedAt": "17.11.2026",
-            "releaseDate": "Henüz Planlanmadı",
-            "upcomingUpdateDate": "",
-            "tags": ["Güvenlik & Gizlilik", "Açık Kaynak", "Windows"]
-        },
-        {
             "id": "com.anticvalley.koru",
             "name": "Koru",
             "developer": "SiberizmBey",
@@ -45,11 +20,11 @@
             ],
             "githubRepo": "SiberizmBey/Koru",
             "featured": true,
-            "new": false,
+            "new": true,
             "downloadable": true,
             "announcedAt": "01.11.2026",
             "releaseDate": "16.11.2026",
-            "upcomingUpdateDate": "",
+            "upcomingUpdateDate": "18.11.2026S",
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
         {
@@ -66,8 +41,8 @@
             "featured": true,
             "new": false,
             "downloadable": true,
-            "announcedAt": "10.09.2026",
-            "releaseDate": "1.10.2026",
+            "announcedAt": "09.10.2026",
+            "releaseDate": "10.01.2026",
             "upcomingUpdateDate": "",
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
@@ -87,8 +62,8 @@
             "featured": true,
             "new": false,
             "downloadable": true,
-            "announcedAt": "20.08.2026",
-            "releaseDate": "1.09.2026",
+            "announcedAt": "08.20.2026",
+            "releaseDate": "09.01.2026",
             "upcomingUpdateDate": "",
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
@@ -108,8 +83,8 @@
             "featured": true,
             "new": false,
             "downloadable": true,
-            "announcedAt": "01.09.2026",
-            "releaseDate": "14.11.2026",
+            "announcedAt": "09.01.2026",
+            "releaseDate": "11.14.2026",
             "upcomingUpdateDate": "",
             "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]
         }
