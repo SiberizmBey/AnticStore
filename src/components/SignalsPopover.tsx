@@ -85,55 +85,23 @@ export function SignalsPopover({ onSelectAppById }: SignalsPopoverProps) {
   const hasUnread = unreadSignalsCount > 0;
 
   return (
-    <div ref={containerRef} className="relative flex items-center shrink-0">
-      {/* Standalone Sinyaller Capsule */}
-      <div
-        className={`koza-nav-capsule relative flex items-center p-1.5 rounded-full bg-island border shadow-sm shrink-0 transition-all ${
-          isOpen || hasUnread ? 'border-accent' : 'border-subtle hover:border-hover'
-        }`}
-        style={
-          isOpen || hasUnread
-            ? {
-                boxShadow:
-                  '0 0 0 1px var(--accent-border), 0 0 16px -4px rgba(var(--accent-rgb), 0.45)',
-              }
-            : undefined
-        }
-      >
-        <button
-          type="button"
-          onClick={handleToggle}
-          aria-expanded={isOpen}
-          aria-haspopup="dialog"
-          aria-label="Sinyaller ve haber akışı"
-          title="Sinyaller — Güncel duyurular ve notlar"
-          className="h-7 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold bg-transparent text-primary hover:opacity-85 transition-opacity cursor-pointer shrink-0 whitespace-nowrap"
-        >
-          <Newspaper className="w-3.5 h-3.5 accent-text shrink-0" />
-          <span className="hidden sm:inline">Sinyaller</span>
-        </button>
-
-        {hasUnread && (
-          <span
-            aria-label={`${unreadSignalsCount} okunmamış sinyal`}
-            className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-[var(--bg-canvas)]"
-          />
-        )}
-      </div>
-
+    <div
+      ref={containerRef}
+      className="koza-window-interactive fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center"
+    >
       <AnimatePresence>
         {isOpen && (
           <motion.div
             role="dialog"
             aria-label={signalsFeed.title || 'Sinyaller'}
-            initial={{ opacity: 0, y: -8, scale: 0.98, filter: 'blur(4px)' }}
+            initial={{ opacity: 0, y: 10, scale: 0.98, filter: 'blur(4px)' }}
             animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: -8, scale: 0.98, filter: 'blur(4px)' }}
+            exit={{ opacity: 0, y: 10, scale: 0.98, filter: 'blur(4px)' }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="koza-window-interactive fixed sm:absolute right-3 sm:right-0 top-[62px] sm:top-[calc(100%+12px)] w-[calc(100vw-1.5rem)] sm:w-[400px] z-50 rounded-3xl bg-modal border border-subtle shadow-2xl overflow-hidden"
+            className="absolute bottom-[calc(100%+12px)] right-0 w-[calc(100vw-2rem)] sm:w-[400px] max-h-[calc(100vh-6.5rem)] flex flex-col z-50 rounded-3xl bg-modal border border-subtle shadow-2xl overflow-hidden"
           >
             {/* Header with subtle concentric signal rings */}
-            <div className="relative px-5 pt-4 pb-4 border-b border-subtle overflow-hidden">
+            <div className="relative px-5 pt-4 pb-4 border-b border-subtle overflow-hidden shrink-0">
               <svg
                 className="pointer-events-none absolute -top-10 -right-10 w-44 h-44 opacity-25"
                 viewBox="0 0 160 160"
@@ -194,7 +162,7 @@ export function SignalsPopover({ onSelectAppById }: SignalsPopoverProps) {
             </div>
 
             {/* Feed Body */}
-            <div className="max-h-[420px] overflow-y-auto p-4 space-y-3">
+            <div className="flex-1 min-h-0 max-h-[420px] overflow-y-auto p-4 space-y-3">
               {isSyncingSignals && signals.length === 0 ? (
                 <div className="py-12 flex flex-col items-center justify-center gap-2 text-xs text-muted">
                   <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -274,7 +242,7 @@ export function SignalsPopover({ onSelectAppById }: SignalsPopoverProps) {
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-3 border-t border-subtle text-center bg-inner/40">
+            <div className="px-4 py-3 border-t border-subtle text-center bg-inner/40 shrink-0">
               <p className="text-[10px] font-mono tracking-[0.16em] uppercase text-muted">
                 {signalsFeed.footerNote || 'YENİ NOTLAR BURADA YAYINLANIR'}
               </p>
@@ -282,6 +250,41 @@ export function SignalsPopover({ onSelectAppById }: SignalsPopoverProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Bottom-Right Standalone Sinyaller Capsule */}
+      <div
+        className={`koza-nav-capsule relative flex items-center p-1.5 rounded-full bg-island border shadow-lg shrink-0 transition-all backdrop-blur-md ${
+          isOpen || hasUnread ? 'border-accent' : 'border-subtle hover:border-hover'
+        }`}
+        style={
+          isOpen || hasUnread
+            ? {
+                boxShadow:
+                  '0 0 0 1px var(--accent-border), 0 8px 24px -6px rgba(var(--accent-rgb), 0.45)',
+              }
+            : undefined
+        }
+      >
+        <button
+          type="button"
+          onClick={handleToggle}
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
+          aria-label="Sinyaller ve haber akışı"
+          title="Sinyaller — Güncel duyurular ve notlar"
+          className="h-7 px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold bg-transparent text-primary hover:opacity-85 transition-opacity cursor-pointer shrink-0 whitespace-nowrap"
+        >
+          <Newspaper className="w-3.5 h-3.5 accent-text shrink-0" />
+          <span>Sinyaller</span>
+        </button>
+
+        {hasUnread && (
+          <span
+            aria-label={`${unreadSignalsCount} okunmamış sinyal`}
+            className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-[var(--bg-canvas)]"
+          />
+        )}
+      </div>
     </div>
   );
 }

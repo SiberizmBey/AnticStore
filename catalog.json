@@ -20,6 +20,7 @@
             ],
             "githubRepo": "SiberizmBey/Koru",
             "featured": true,
+            "new": true,
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
         {
@@ -34,6 +35,7 @@
             "screenshots": [],
             "githubRepo": "SiberizmBey/KirpiFabrikaSolingen",
             "featured": true,
+            "new": false,
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
         {
@@ -50,6 +52,7 @@
             ],
             "githubRepo": "SiberizmBey/Kirpi",
             "featured": true,
+            "new": false,
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
         {
@@ -66,6 +69,7 @@
             ],
             "githubRepo": "SiberizmBey/Lir",
             "featured": true,
+            "new": false,
             "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]
         }
     ]

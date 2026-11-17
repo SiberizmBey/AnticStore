@@ -7,6 +7,7 @@ import { StoreView } from './views/StoreView';
 import { InstalledView } from './views/InstalledView';
 import { SettingsView } from './views/SettingsView';
 import { AppDetailModal } from './components/AppDetailModal';
+import { SignalsPopover } from './components/SignalsPopover';
 import { useStore } from './context/StoreContext';
 import type { StoreApp } from './types';
 
@@ -31,14 +32,13 @@ function KoruShell() {
       <Navbar
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
-        onSelectAppById={handleSelectAppById}
       />
 
       <main
         className={`flex-1 w-full mx-auto pt-2 ${
           currentTab === 'settings'
-            ? 'px-3 sm:px-6 lg:px-8 pb-6'
-            : 'px-3 sm:px-6 lg:px-8 pb-16'
+            ? 'px-3 sm:px-6 lg:px-8 pb-20'
+            : 'px-3 sm:px-6 lg:px-8 pb-20'
         }`}
       >
         <AnimatePresence mode="wait">
@@ -62,6 +62,8 @@ function KoruShell() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      <SignalsPopover onSelectAppById={handleSelectAppById} />
 
       <AnimatePresence>
         {currentSelectedApp && (

@@ -40,6 +40,8 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   const task = tasks[app.id];
   const error = appErrors[app.id];
   const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
+  const isNew = Boolean(app.new);
+  const hasSpotlight = hasUpdate || isNew;
   const preferredAsset = app.latestRelease
     ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
     : null;
@@ -66,7 +68,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!hasUpdate) return;
+    if (!hasSpotlight) return;
     const rect = e.currentTarget.getBoundingClientRect();
     e.currentTarget.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
     e.currentTarget.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
@@ -79,13 +81,13 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       transition={{ duration: 0.15, ease: 'easeOut' }}
       onClick={() => onSelect(app)}
       onMouseMove={handleMouseMove}
-      className={`group relative overflow-hidden flex flex-col justify-between p-5 rounded-3xl bg-card ${
-        hasUpdate
-          ? 'card-update-spotlight'
-          : 'border border-card hover:border-hover'
+      className={`group relative overflow-hidden flex flex-col justify-between p-5 rounded-3xl bg-card border ${
+        hasSpotlight
+          ? 'card-update-spotlight border-card hover:border-hover'
+          : 'border-card hover:border-hover'
       } hover:bg-card-hover transition-all duration-150 cursor-pointer select-none`}
     >
-      {hasUpdate && (
+      {hasSpotlight && (
         <>
           <div
             aria-hidden="true"
@@ -195,6 +197,15 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             <span className="text-emerald-400 font-semibold flex items-center gap-1 tabular-nums">
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
               <span>Kurulu (v{installed.version})</span>
+            </span>
+          ) : isNew ? (
+            <span className="accent-text font-semibold flex items-center gap-1.5">
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: 'var(--accent)' }}
+                aria-hidden="true"
+              />
+              Yeni
             </span>
           ) : (
             <span className="text-muted">Kurulmaya hazır</span>

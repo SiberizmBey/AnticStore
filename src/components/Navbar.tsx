@@ -3,17 +3,15 @@ import { Store, PackageCheck, Settings, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 import { useStore } from "../context/StoreContext";
 import { WindowControls } from "./WindowControls";
-import { SignalsPopover } from "./SignalsPopover";
 
 export type NavTab = "store" | "installed" | "settings";
 
 interface NavbarProps {
     currentTab: NavTab;
     onSelectTab: (tab: NavTab) => void;
-    onSelectAppById?: (appId: string) => void;
 }
 
-export function Navbar({ currentTab, onSelectTab, onSelectAppById }: NavbarProps) {
+export function Navbar({ currentTab, onSelectTab }: NavbarProps) {
     const { isSyncing, syncCatalog, installedApps, updatableApps } = useStore();
 
     const navItems: {
@@ -126,32 +124,28 @@ export function Navbar({ currentTab, onSelectTab, onSelectAppById }: NavbarProps
                     })}
                 </nav>
 
-                {/* Sağ Bölge: Sinyaller Kapsülü (Sol) + Yenile & Pencere Kontrolleri Kapsülü (Sağ) */}
-                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                    <SignalsPopover onSelectAppById={onSelectAppById} />
+                {/* Sağ Kapsül: Sync + Window Controls */}
+                <div className="koza-nav-capsule flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-2 rounded-full bg-island border border-subtle shadow-sm shrink-0 transition-colors">
+                    <button
+                        type="button"
+                        onClick={() => void syncCatalog()}
+                        disabled={isSyncing}
+                        title="Mağaza Kataloğunu ve Güncellemeleri Yenile"
+                        aria-label="Kataloğu yenile"
+                        className="h-7 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold bg-card border border-subtle hover:bg-card-hover text-primary transition-colors cursor-pointer disabled:opacity-50 shrink-0 whitespace-nowrap"
+                    >
+                        <RefreshCw
+                            className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin accent-text" : "accent-text"}`}
+                        />
+                        <span className="hidden sm:inline">Yenile</span>
+                    </button>
 
-                    <div className="koza-nav-capsule flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-2 rounded-full bg-island border border-subtle shadow-sm shrink-0 transition-colors">
-                        <button
-                            type="button"
-                            onClick={() => void syncCatalog()}
-                            disabled={isSyncing}
-                            title="Mağaza Kataloğunu ve Güncellemeleri Yenile"
-                            aria-label="Kataloğu yenile"
-                            className="h-7 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-xs font-semibold bg-card border border-subtle hover:bg-card-hover text-primary transition-colors cursor-pointer disabled:opacity-50 shrink-0 whitespace-nowrap"
-                        >
-                            <RefreshCw
-                                className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin accent-text" : "accent-text"}`}
-                            />
-                            <span className="hidden sm:inline">Yenile</span>
-                        </button>
-
-                        {window.anticStoreDesktop && (
-                            <>
-                                <div className="w-[1px] h-4 bg-subtle hidden sm:block mx-0.5" />
-                                <WindowControls />
-                            </>
-                        )}
-                    </div>
+                    {window.anticStoreDesktop && (
+                        <>
+                            <div className="w-[1px] h-4 bg-subtle hidden sm:block mx-0.5" />
+                            <WindowControls />
+                        </>
+                    )}
                 </div>
             </div>
         </header>

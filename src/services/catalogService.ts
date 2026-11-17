@@ -248,6 +248,7 @@ function mapBundleToStoreApp(
     repoUrl: repoInfo.html_url || `https://github.com/${fullName}`,
     stars: repoInfo.stargazers_count,
     featured: Boolean(override?.featured || manifest.featured),
+    new: Boolean(override?.new ?? manifest.new),
     tags:
       override?.tags ||
       manifest.tags ||
@@ -298,6 +299,7 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
       : [],
     websiteUrl: entry.websiteUrl || entry.downloadUrl || 'https://anticvalley.com.tr',
     featured: Boolean(entry.featured),
+    new: Boolean(entry.new),
     tags: entry.tags || ['Doğrudan Paket'],
     latestVersion: version,
     latestRelease: release,
