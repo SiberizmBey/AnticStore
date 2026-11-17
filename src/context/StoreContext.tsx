@@ -297,6 +297,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     options?: { release?: StoreRelease; asset?: StoreAsset; mode?: 'install' | 'update' | 'reinstall' }
   ) => {
     clearAppError(app.id);
+    if (app.downloadable === false) {
+      setAppErrors((prev) => ({
+        ...prev,
+        [app.id]: 'Bu uygulama şu anda indirmeye kapalı.',
+      }));
+      return;
+    }
     const release = options?.release || app.latestRelease;
     if (!release) {
       setAppErrors((prev) => ({
@@ -553,6 +560,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const updateAllApps = async () => {
     for (const app of updatableApps) {
+      if (app.downloadable === false) continue;
       await updateApp(app);
     }
   };

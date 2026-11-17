@@ -11,6 +11,7 @@ import {
   Sparkles,
   CheckCircle2,
   X,
+  Ban,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -105,10 +106,17 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
 
   const spotlightInstalled = latestUpdatedApp ? installedMap[latestUpdatedApp.id] : undefined;
   const spotlightTask = latestUpdatedApp ? tasks[latestUpdatedApp.id] : undefined;
+  const spotlightDownloadable = latestUpdatedApp ? latestUpdatedApp.downloadable !== false : true;
   const spotlightHasUpdate = Boolean(
     latestUpdatedApp &&
       spotlightInstalled &&
       isUpdateAvailable(spotlightInstalled.version, latestUpdatedApp.latestVersion)
+  );
+  const spotlightDownloadBlocked = Boolean(
+    latestUpdatedApp &&
+      !spotlightDownloadable &&
+      !spotlightTask &&
+      (!spotlightInstalled || spotlightHasUpdate)
   );
   const spotlightAsset =
     latestUpdatedApp && latestUpdatedApp.latestRelease
@@ -210,6 +218,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                 name={latestUpdatedApp.name}
                 iconUrl={latestUpdatedApp.iconUrl}
                 cacheKey={latestUpdatedApp.syncedAt}
+                grayscale={!spotlightDownloadable}
                 className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-modal p-2"
                 imageClassName="h-full w-full object-contain rounded-xl"
               />
@@ -241,10 +250,24 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                       <span>{formatBytes(spotlightAsset.size)}</span>
                     </>
                   )}
-                  {latestUpdatedApp.latestRelease?.publishedAt && (
+                  {(latestUpdatedApp.releaseDate || latestUpdatedApp.latestRelease?.publishedAt) && (
                     <>
                       <span aria-hidden="true">·</span>
-                      <span>{formatTurkishDate(latestUpdatedApp.latestRelease.publishedAt)}</span>
+                      <span>
+                        Yayın: {formatTurkishDate(latestUpdatedApp.releaseDate || latestUpdatedApp.latestRelease?.publishedAt)}
+                      </span>
+                    </>
+                  )}
+                  {latestUpdatedApp.announcedAt && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>Duyuru: {formatTurkishDate(latestUpdatedApp.announcedAt)}</span>
+                    </>
+                  )}
+                  {latestUpdatedApp.upcomingUpdateDate && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>Yaklaşan: {formatTurkishDate(latestUpdatedApp.upcomingUpdateDate)}</span>
                     </>
                   )}
                 </div>
@@ -263,6 +286,16 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                 >
                   <X className="w-4 h-4" />
                   <span className="tabular-nums">İptal ({spotlightTask.percent}%)</span>
+                </button>
+              ) : spotlightDownloadBlocked ? (
+                <button
+                  type="button"
+                  disabled
+                  onClick={(e) => e.stopPropagation()}
+                  className="px-5 py-2.5 rounded-full bg-inner border border-subtle text-xs font-bold text-muted flex items-center gap-2 cursor-not-allowed opacity-60 whitespace-nowrap"
+                >
+                  <Ban className="w-4 h-4" />
+                  <span>İndirilemez</span>
                 </button>
               ) : spotlightHasUpdate ? (
                 <button
@@ -298,7 +331,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                     void installApp(latestUpdatedApp);
                   }}
                   disabled={!spotlightAsset}
-                  className="px-5 py-2.5 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 flex items-center gap-2 cursor-pointer disabled:opacity-40 whitespace-nowrap"
+                  className="px-5 py-2.5 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                 >
                   <Download className="w-4 h-4" />
                   <span>İndir ve Kur</span>
@@ -460,9 +493,11 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                 {filteredApps.map((app) => {
                   const installed = installedMap[app.id];
                   const task = tasks[app.id];
+                  const isDownloadable = app.downloadable !== false;
                   const hasUpdate = Boolean(
                     installed && isUpdateAvailable(installed.version, app.latestVersion)
                   );
+                  const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
                   const asset = app.latestRelease
                     ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
                     : null;
@@ -479,6 +514,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                             name={app.name}
                             iconUrl={app.iconUrl}
                             cacheKey={app.syncedAt}
+                            grayscale={!isDownloadable}
                             className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-subtle bg-inner p-1"
                             imageClassName="h-full w-full object-contain rounded-lg"
                           />
@@ -515,9 +551,11 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                         <div className="inline-flex items-center gap-2">
                           <button
                             type="button"
+                            disabled={isDownloadBlocked || (!asset && !installed && !task)}
                             onClick={(e) => {
                               e.stopPropagation();
                               if (task) void cancelTask(app.id);
+                              else if (isDownloadBlocked) return;
                               else if (hasUpdate) void updateApp(app);
                               else if (installed)
                                 void launchApp(app).then((r) => {
@@ -525,24 +563,31 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                 });
                               else void installApp(app);
                             }}
-                            className={`px-3 py-1.5 rounded-full text-[11px] font-bold cursor-pointer ${
-                              hasUpdate || !installed
-                                ? 'btn-primary-koza'
-                                : 'bg-inner border border-subtle text-primary'
+                            className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap ${
+                              isDownloadBlocked
+                                ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                                : hasUpdate || !installed
+                                ? 'btn-primary-koza cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
+                                : 'bg-inner border border-subtle text-primary cursor-pointer'
                             }`}
                           >
-                            {task
-                              ? `${task.percent}%`
-                              : hasUpdate
-                              ? 'Güncelle'
-                              : installed
-                              ? (
-                                <span className="inline-flex items-center gap-1">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                  Aç
-                                </span>
-                              )
-                              : 'Yükle'}
+                            {task ? (
+                              `${task.percent}%`
+                            ) : isDownloadBlocked ? (
+                              <span className="inline-flex items-center gap-1">
+                                <Ban className="w-3 h-3" />
+                                İndirilemez
+                              </span>
+                            ) : hasUpdate ? (
+                              'Güncelle'
+                            ) : installed ? (
+                              <span className="inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                Aç
+                              </span>
+                            ) : (
+                              'Yükle'
+                            )}
                           </button>
                           <ChevronRight className="w-4 h-4 text-muted group-hover:text-primary" />
                         </div>

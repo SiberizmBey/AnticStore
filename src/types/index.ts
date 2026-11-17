@@ -48,6 +48,10 @@ export interface CatalogAppEntry {
   githubRepo?: string;
   featured?: boolean;
   new?: boolean;
+  downloadable?: boolean;
+  announcedAt?: string;
+  releaseDate?: string;
+  upcomingUpdateDate?: string;
   tags?: string[];
   // Optional direct release (for apps not hosted on GitHub Releases)
   version?: string;
@@ -106,6 +110,10 @@ export interface StoreApp {
   stars?: number;
   featured?: boolean;
   new?: boolean;
+  downloadable: boolean;
+  announcedAt?: string;
+  releaseDate?: string;
+  upcomingUpdateDate?: string;
   tags: string[];
   latestVersion: string;
   latestRelease: StoreRelease | null;

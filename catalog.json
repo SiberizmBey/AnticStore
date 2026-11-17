@@ -20,7 +20,11 @@
             ],
             "githubRepo": "SiberizmBey/Koru",
             "featured": true,
-            "new": true,
+            "new": false,
+            "downloadable": true,
+            "announcedAt": "2026-10-01",
+            "releaseDate": "2026-11-16",
+            "upcomingUpdateDate": "",
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
         {
@@ -36,6 +40,10 @@
             "githubRepo": "SiberizmBey/KirpiFabrikaSolingen",
             "featured": true,
             "new": false,
+            "downloadable": true,
+            "announcedAt": "2026-09-10",
+            "releaseDate": "",
+            "upcomingUpdateDate": "",
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
         {
@@ -53,6 +61,10 @@
             "githubRepo": "SiberizmBey/Kirpi",
             "featured": true,
             "new": false,
+            "downloadable": true,
+            "announcedAt": "2026-08-20",
+            "releaseDate": "",
+            "upcomingUpdateDate": "",
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
         {
@@ -70,6 +82,10 @@
             "githubRepo": "SiberizmBey/Lir",
             "featured": true,
             "new": false,
+            "downloadable": true,
+            "announcedAt": "2026-09-01",
+            "releaseDate": "",
+            "upcomingUpdateDate": "",
             "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]
         }
     ]

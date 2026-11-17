@@ -5,6 +5,7 @@ interface AppIconProps {
   name: string;
   iconUrl?: string;
   cacheKey?: string;
+  grayscale?: boolean;
   className?: string;
   imageClassName?: string;
 }
@@ -12,11 +13,13 @@ interface AppIconProps {
 export function AppIcon({
   name,
   iconUrl,
+  grayscale = false,
   className = 'w-12 h-12 rounded-2xl bg-inner border border-subtle flex items-center justify-center overflow-hidden shrink-0',
   imageClassName = 'w-full h-full object-contain',
 }: AppIconProps) {
   const { src: imageSrc, failed, markFailed } = useCachedMedia(iconUrl);
   const initial = (name || 'A').trim().charAt(0).toUpperCase();
+  const grayscaleFilterClass = grayscale ? 'grayscale opacity-75' : '';
 
   return (
     <div className={className}>
@@ -24,13 +27,15 @@ export function AppIcon({
         <img
           src={imageSrc}
           alt={`${name} simgesi`}
-          className={imageClassName}
+          className={`${imageClassName} ${grayscaleFilterClass}`.trim()}
           decoding="sync"
           referrerPolicy="no-referrer"
           onError={markFailed}
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center accent-subtle accent-text font-bold text-base">
+        <div
+          className={`w-full h-full flex items-center justify-center accent-subtle accent-text font-bold text-base ${grayscaleFilterClass}`.trim()}
+        >
           {initial || <Package className="w-5 h-5" />}
         </div>
       )}

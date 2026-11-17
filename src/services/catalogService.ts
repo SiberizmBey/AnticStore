@@ -231,6 +231,17 @@ function mapBundleToStoreApp(
     repoInfo.owner?.avatar_url;
   const screenshots = override?.screenshots || manifest.screenshots;
 
+  const rawDownloadable = override?.downloadable ?? manifest.downloadable;
+  const downloadable = rawDownloadable !== false;
+  const announcedAt = override?.announcedAt || manifest.announcedAt;
+  const releaseDate =
+    override?.releaseDate ||
+    manifest.releaseDate ||
+    latestRelease?.publishedAt ||
+    override?.publishedAt ||
+    manifest.publishedAt;
+  const upcomingUpdateDate = override?.upcomingUpdateDate || manifest.upcomingUpdateDate;
+
   return {
     id: appId,
     name: appName,
@@ -249,6 +260,10 @@ function mapBundleToStoreApp(
     stars: repoInfo.stargazers_count,
     featured: Boolean(override?.featured || manifest.featured),
     new: Boolean(override?.new ?? manifest.new),
+    downloadable,
+    announcedAt: announcedAt || undefined,
+    releaseDate: releaseDate || undefined,
+    upcomingUpdateDate: upcomingUpdateDate || undefined,
     tags:
       override?.tags ||
       manifest.tags ||
@@ -273,7 +288,7 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
         version,
         name: `v${version}`,
         notes: entry.releaseNotes || '',
-        publishedAt: entry.publishedAt || new Date().toISOString(),
+        publishedAt: entry.publishedAt || entry.releaseDate || '',
         assets: [
           {
             name: fileName,
@@ -300,6 +315,10 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
     websiteUrl: entry.websiteUrl || entry.downloadUrl || 'https://anticvalley.com.tr',
     featured: Boolean(entry.featured),
     new: Boolean(entry.new),
+    downloadable: entry.downloadable !== false,
+    announcedAt: entry.announcedAt || undefined,
+    releaseDate: entry.releaseDate || entry.publishedAt || undefined,
+    upcomingUpdateDate: entry.upcomingUpdateDate || undefined,
     tags: entry.tags || ['Doğrudan Paket'],
     latestVersion: version,
     latestRelease: release,

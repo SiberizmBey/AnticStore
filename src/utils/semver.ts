@@ -115,9 +115,15 @@ export function pickPreferredAsset(
 }
 
 export function formatTurkishDate(isoDate?: string): string {
-  if (!isoDate) return '—';
-  const date = new Date(isoDate);
-  if (Number.isNaN(date.getTime())) return '—';
+  const trimmed = isoDate?.trim();
+  if (!trimmed) return '—';
+
+  const dateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const date = dateOnlyMatch
+    ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+    : new Date(trimmed);
+
+  if (Number.isNaN(date.getTime())) return trimmed;
   return date.toLocaleDateString('tr-TR', {
     day: 'numeric',
     month: 'short',

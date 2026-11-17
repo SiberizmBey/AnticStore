@@ -15,6 +15,7 @@ import {
   Calendar,
   FileArchive,
   ShieldAlert,
+  Ban,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -78,11 +79,14 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
   const installed = installedMap[app.id];
   const task = tasks[app.id];
   const error = appErrors[app.id];
+  const isDownloadable = app.downloadable !== false;
   const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
   const isNew = Boolean(app.new);
   const selectedIsDifferent = Boolean(
     installed && selectedRelease && compareSemver(selectedRelease.version, installed.version) !== 0
   );
+  const effectiveReleaseDate =
+    app.releaseDate || selectedRelease?.publishedAt || app.latestRelease?.publishedAt;
   const preferredAsset = selectedRelease
     ? pickPreferredAsset(selectedRelease.assets, platformInfo.platform)
     : null;
@@ -104,7 +108,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
   };
 
   const handleInstallSelected = async () => {
-    if (!selectedRelease) return;
+    if (!selectedRelease || !isDownloadable) return;
     setActionNotice(null);
     const mode = installed
       ? compareSemver(selectedRelease.version, installed.version) > 0
@@ -120,7 +124,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
   };
 
   const handleAssetInstall = async (asset: StoreAsset) => {
-    if (!selectedRelease) return;
+    if (!selectedRelease || !isDownloadable) return;
     setActionNotice(null);
     await installApp(app, {
       release: selectedRelease,
@@ -181,6 +185,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
               name={app.name}
               iconUrl={app.iconUrl}
               cacheKey={app.syncedAt}
+              grayscale={!isDownloadable}
               className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-card p-1.5"
               imageClassName="h-full w-full object-contain rounded-xl"
             />
@@ -327,9 +332,10 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                 </div>
                 <p className="text-[11px] text-muted font-mono tabular-nums">
                   En güncel sürüm: v{app.latestVersion}
-                  {selectedRelease && selectedRelease.publishedAt
-                    ? ` · Yayın: ${formatTurkishDate(selectedRelease.publishedAt)}`
+                  {effectiveReleaseDate
+                    ? ` · Yayın: ${formatTurkishDate(effectiveReleaseDate)}`
                     : ''}
+                  {!isDownloadable ? ' · İndirmeye kapalı' : ''}
                 </p>
               </div>
 
@@ -348,11 +354,21 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                     {hasUpdate && (
                       <button
                         type="button"
-                        onClick={() => void updateApp(app)}
-                        className="px-4 py-2 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        disabled={!isDownloadable}
+                        onClick={() => {
+                          if (!isDownloadable) return;
+                          void updateApp(app);
+                        }}
+                        className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${
+                          !isDownloadable
+                            ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                            : 'btn-primary-koza hover:opacity-90 cursor-pointer'
+                        }`}
                       >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span className="tabular-nums">Güncelle (v{app.latestVersion})</span>
+                        {!isDownloadable ? <Ban className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                        <span className="tabular-nums">
+                          {!isDownloadable ? 'İndirilemez' : `Güncelle (v${app.latestVersion})`}
+                        </span>
                       </button>
                     )}
 
@@ -373,12 +389,20 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
 
                         <button
                           type="button"
-                          onClick={() =>
-                            selectedIsDifferent
-                              ? void handleInstallSelected()
-                              : void reinstallApp(app)
-                          }
-                          className="px-3.5 py-2 rounded-full bg-inner border border-subtle hover:bg-card-hover text-xs font-semibold text-secondary hover:text-primary flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                          disabled={!isDownloadable}
+                          onClick={() => {
+                            if (!isDownloadable) return;
+                            if (selectedIsDifferent) {
+                              void handleInstallSelected();
+                            } else {
+                              void reinstallApp(app);
+                            }
+                          }}
+                          className={`px-3.5 py-2 rounded-full bg-inner border border-subtle text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap ${
+                            !isDownloadable
+                              ? 'text-muted cursor-not-allowed opacity-50'
+                              : 'hover:bg-card-hover text-secondary hover:text-primary cursor-pointer'
+                          }`}
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                           <span>
@@ -402,13 +426,24 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                     {!installed && (
                       <button
                         type="button"
-                        onClick={() => void handleInstallSelected()}
-                        disabled={!preferredAsset}
-                        className="px-5 py-2 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 disabled:opacity-40 flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                        onClick={() => {
+                          if (!isDownloadable) return;
+                          void handleInstallSelected();
+                        }}
+                        disabled={!isDownloadable || !preferredAsset}
+                        className={`px-5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${
+                          !isDownloadable
+                            ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                            : 'btn-primary-koza hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
+                        }`}
                       >
-                        <Download className="w-3.5 h-3.5" />
+                        {!isDownloadable ? <Ban className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
                         <span>
-                          {selectedRelease ? `İndir ve Kur (v${selectedRelease.version})` : 'İndir ve Kur'}
+                          {!isDownloadable
+                            ? 'İndirilemez'
+                            : selectedRelease
+                            ? `İndir ve Kur (v${selectedRelease.version})`
+                            : 'İndir ve Kur'}
                         </span>
                       </button>
                     )}
@@ -462,7 +497,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
               />
             </div>
 
-            {/* Right Column: Description + Version History / Release Picker */}
+            {/* Right Column: Description + Dates + Version History / Release Picker */}
             <div className="lg:col-span-5 space-y-4 min-w-0">
               <div className="space-y-1.5">
                 <h3 className="text-xs font-bold text-primary uppercase tracking-wider">Hakkında</h3>
@@ -470,6 +505,28 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                   {app.description}
                 </p>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="p-2.5 rounded-xl bg-inner border border-subtle">
+                  <span className="text-[10px] font-medium text-muted block">Duyurulma Tarihi</span>
+                  <span className="text-xs font-mono font-semibold text-primary tabular-nums mt-0.5 block">
+                    {formatTurkishDate(app.announcedAt)}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-inner border border-subtle">
+                  <span className="text-[10px] font-medium text-muted block">Yayınlanma Tarihi</span>
+                  <span className="text-xs font-mono font-semibold text-primary tabular-nums mt-0.5 block">
+                    {formatTurkishDate(effectiveReleaseDate)}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-inner border border-subtle">
+                  <span className="text-[10px] font-medium text-muted block">Yaklaşan Güncelleme</span>
+                  <span className="text-xs font-mono font-semibold text-primary tabular-nums mt-0.5 block">
+                    {formatTurkishDate(app.upcomingUpdateDate)}
+                  </span>
+                </div>
+              </div>
+
               {app.releases.length > 0 ? (
                 <div className="p-4 rounded-2xl bg-card border border-subtle space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -528,11 +585,22 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
 
                             <button
                               type="button"
-                              disabled={Boolean(task)}
-                              onClick={() => void handleAssetInstall(asset)}
-                              className="px-3 py-1.5 rounded-full bg-card hover:bg-card-hover border border-subtle text-[11px] font-semibold text-primary shrink-0 cursor-pointer disabled:opacity-40"
+                              disabled={!isDownloadable || Boolean(task)}
+                              onClick={() => {
+                                if (!isDownloadable) return;
+                                void handleAssetInstall(asset);
+                              }}
+                              className={`px-3 py-1.5 rounded-full border border-subtle text-[11px] font-semibold shrink-0 ${
+                                !isDownloadable
+                                  ? 'bg-inner text-muted cursor-not-allowed opacity-50'
+                                  : 'bg-card hover:bg-card-hover text-primary cursor-pointer disabled:opacity-40'
+                              }`}
                             >
-                              {platformInfo.isDesktop ? 'Kur' : 'İndir'}
+                              {!isDownloadable
+                                ? 'İndirilemez'
+                                : platformInfo.isDesktop
+                                ? 'Kur'
+                                : 'İndir'}
                             </button>
                           </div>
                         ))}

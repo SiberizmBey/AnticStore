@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ArrowRight,
   X,
+  Ban,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { AppIcon } from '../components/AppIcon';
@@ -32,6 +33,8 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
     cancelTask,
   } = useStore();
 
+  const downloadableUpdatesCount = updatableApps.filter((a) => a.downloadable !== false).length;
+
   return (
     <div className="space-y-6 w-full">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -47,14 +50,14 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
           </div>
         </div>
 
-        {updatableApps.length > 0 && (
+        {downloadableUpdatesCount > 0 && (
           <button
             type="button"
             onClick={() => void updateAllApps()}
             className="px-4 py-2 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 flex items-center gap-2 cursor-pointer self-start sm:self-auto whitespace-nowrap"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Tümünü Güncelle ({updatableApps.length})</span>
+            <span>Tümünü Güncelle ({downloadableUpdatesCount})</span>
           </button>
         )}
       </header>
@@ -69,6 +72,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
             {updatableApps.map((app) => {
               const inst = installedMap[app.id];
               const task = tasks[app.id];
+              const isDownloadable = app.downloadable !== false;
               return (
                 <div
                   key={app.id}
@@ -80,6 +84,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                       name={app.name}
                       iconUrl={app.iconUrl}
                       cacheKey={app.syncedAt}
+                      grayscale={!isDownloadable}
                       className="w-11 h-11 rounded-2xl bg-card border border-subtle p-1.5 shrink-0 flex items-center justify-center overflow-hidden"
                       imageClassName="w-full h-full object-contain rounded-lg"
                     />
@@ -103,6 +108,16 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                       >
                         <X className="w-3.5 h-3.5" />
                         <span className="tabular-nums">{task.percent}% İptal</span>
+                      </button>
+                    ) : !isDownloadable ? (
+                      <button
+                        type="button"
+                        disabled
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-4 py-1.5 rounded-full bg-card border border-subtle text-xs font-bold text-muted flex items-center gap-1.5 cursor-not-allowed opacity-60"
+                      >
+                        <Ban className="w-3.5 h-3.5" />
+                        <span>İndirilemez</span>
                       </button>
                     ) : (
                       <button
@@ -151,6 +166,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
           {installedApps.map((app) => {
             const inst = installedMap[app.id];
             const task = tasks[app.id];
+            const isDownloadable = app.downloadable !== false;
             const hasUpdate = Boolean(inst && isUpdateAvailable(inst.version, app.latestVersion));
 
             return (
@@ -165,6 +181,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                       name={app.name}
                       iconUrl={app.iconUrl}
                       cacheKey={app.syncedAt}
+                      grayscale={!isDownloadable}
                       className="w-12 h-12 rounded-2xl bg-modal border border-subtle p-1.5 shrink-0 flex items-center justify-center overflow-hidden"
                       imageClassName="w-full h-full object-contain rounded-lg"
                     />
@@ -204,14 +221,20 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                         {hasUpdate && (
                           <button
                             type="button"
+                            disabled={!isDownloadable}
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (!isDownloadable) return;
                               void updateApp(app);
                             }}
-                            className="px-3.5 py-1.5 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                              !isDownloadable
+                                ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                                : 'btn-primary-koza hover:opacity-90 cursor-pointer'
+                            }`}
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            <span>Güncelle</span>
+                            {!isDownloadable ? <Ban className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                            <span>{!isDownloadable ? 'İndirilemez' : 'Güncelle'}</span>
                           </button>
                         )}
                         <button
@@ -229,11 +252,17 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                         </button>
                         <button
                           type="button"
+                          disabled={!isDownloadable}
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (!isDownloadable) return;
                             void reinstallApp(app);
                           }}
-                          className="px-3.5 py-1.5 rounded-full bg-inner border border-subtle hover:bg-card-hover text-xs font-semibold text-secondary hover:text-primary flex items-center gap-1.5 cursor-pointer"
+                          className={`px-3.5 py-1.5 rounded-full bg-inner border border-subtle text-xs font-semibold flex items-center gap-1.5 ${
+                            !isDownloadable
+                              ? 'text-muted cursor-not-allowed opacity-50'
+                              : 'hover:bg-card-hover text-secondary hover:text-primary cursor-pointer'
+                          }`}
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                           <span>Yeniden Kur</span>

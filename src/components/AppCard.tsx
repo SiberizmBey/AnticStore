@@ -7,6 +7,7 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  Ban,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -14,6 +15,7 @@ import { AppIcon } from './AppIcon';
 import {
   formatBytes,
   formatSpeed,
+  formatTurkishDate,
   isUpdateAvailable,
   pickPreferredAsset,
 } from '../utils/semver';
@@ -39,9 +41,11 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   const installed = installedMap[app.id];
   const task = tasks[app.id];
   const error = appErrors[app.id];
+  const isDownloadable = app.downloadable !== false;
   const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
   const isNew = Boolean(app.new);
   const hasSpotlight = hasUpdate || isNew;
+  const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
   const preferredAsset = app.latestRelease
     ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
     : null;
@@ -50,6 +54,9 @@ export function AppCard({ app, onSelect }: AppCardProps) {
     e.stopPropagation();
     if (task) {
       void cancelTask(app.id);
+      return;
+    }
+    if (isDownloadBlocked) {
       return;
     }
     if (hasUpdate) {
@@ -107,6 +114,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
               name={app.name}
               iconUrl={app.iconUrl}
               cacheKey={app.syncedAt}
+              grayscale={!isDownloadable}
               className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-modal p-1.5 transition-transform duration-200 group-hover:scale-105"
               imageClassName="h-full w-full object-contain rounded-xl"
             />
@@ -174,8 +182,25 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             </div>
           ) : (
             <div className="flex items-center justify-between text-[11px] text-muted font-mono tabular-nums">
-              <span>{preferredAsset ? preferredAsset.name : 'Sürüm paketi'}</span>
-              <span>{preferredAsset && preferredAsset.size > 0 ? formatBytes(preferredAsset.size) : '—'}</span>
+              <span className="truncate">
+                {preferredAsset ? preferredAsset.name : isDownloadable ? 'Sürüm paketi' : 'İndirmeye kapalı'}
+              </span>
+              <span className="shrink-0">
+                {preferredAsset && preferredAsset.size > 0 ? formatBytes(preferredAsset.size) : '—'}
+              </span>
+            </div>
+          )}
+
+          {(app.announcedAt || app.releaseDate || app.upcomingUpdateDate) && (
+            <div className="pt-2 border-t border-subtle/60 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-muted font-mono tabular-nums">
+              {app.releaseDate ? (
+                <span>Yayın: {formatTurkishDate(app.releaseDate)}</span>
+              ) : app.announcedAt ? (
+                <span>Duyuru: {formatTurkishDate(app.announcedAt)}</span>
+              ) : null}
+              {app.upcomingUpdateDate && (
+                <span>Sonraki: {formatTurkishDate(app.upcomingUpdateDate)}</span>
+              )}
             </div>
           )}
         </div>
@@ -205,6 +230,8 @@ export function AppCard({ app, onSelect }: AppCardProps) {
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
               <span>Kurulu (v{installed.version})</span>
             </span>
+          ) : !isDownloadable ? (
+            <span className="text-muted">İndirmeye kapalı</span>
           ) : isNew ? (
             <span className="accent-text font-semibold flex items-center gap-1.5">
               <span
@@ -222,19 +249,26 @@ export function AppCard({ app, onSelect }: AppCardProps) {
         <button
           type="button"
           onClick={handlePrimaryAction}
-          disabled={!preferredAsset && !installed && !task}
-          className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap disabled:opacity-40 ${
-            task
-              ? 'bg-inner border border-subtle text-secondary hover:text-primary'
+          disabled={isDownloadBlocked || (!preferredAsset && !installed && !task)}
+          className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+            isDownloadBlocked
+              ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+              : task
+              ? 'bg-inner border border-subtle text-secondary hover:text-primary cursor-pointer'
               : hasUpdate || !installed
-              ? 'btn-primary-koza hover:opacity-90 active:scale-[0.97]'
-              : 'bg-inner border border-subtle hover:bg-card-hover text-primary'
+              ? 'btn-primary-koza hover:opacity-90 active:scale-[0.97] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
+              : 'bg-inner border border-subtle hover:bg-card-hover text-primary cursor-pointer'
           }`}
         >
           {task ? (
             <>
               <X className="w-3.5 h-3.5" />
               <span>İptal</span>
+            </>
+          ) : isDownloadBlocked ? (
+            <>
+              <Ban className="w-3.5 h-3.5" />
+              <span>İndirilemez</span>
             </>
           ) : hasUpdate ? (
             <>
