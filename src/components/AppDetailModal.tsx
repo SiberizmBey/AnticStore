@@ -79,6 +79,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
   const task = tasks[app.id];
   const error = appErrors[app.id];
   const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
+  const isNew = Boolean(app.new);
   const selectedIsDifferent = Boolean(
     installed && selectedRelease && compareSemver(selectedRelease.version, installed.version) !== 0
   );
@@ -149,11 +150,32 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.94, y: 16 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className="relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-3xl bg-modal border border-subtle shadow-xl overflow-hidden"
+        onMouseMove={(e) => {
+          if (!isNew) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          e.currentTarget.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
+          e.currentTarget.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
+        }}
+        className={`group/modal relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-3xl bg-modal border overflow-hidden ${
+          isNew ? 'card-update-spotlight border-subtle' : 'border-subtle shadow-xl'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
+        {isNew && (
+          <>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 card-update-spotlight-aura transition-opacity duration-300"
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 opacity-0 group-hover/modal:opacity-100 card-update-spotlight-cursor transition-opacity duration-300"
+            />
+          </>
+        )}
+
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-subtle bg-card/40 gap-4">
+        <div className="relative z-10 flex items-center justify-between p-6 border-b border-subtle bg-card/40 gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <AppIcon
               name={app.name}
@@ -163,7 +185,14 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
               imageClassName="h-full w-full object-contain rounded-xl"
             />
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-primary truncate">{app.name}</h2>
+              <div className="flex items-center gap-2.5 min-w-0">
+                <h2 className="text-lg font-bold text-primary truncate">{app.name}</h2>
+                {isNew && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
+                    Yeni
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted mt-0.5 truncate">
                 {app.developer} · {app.category} · <span className="font-mono">{app.id}</span>
               </p>
@@ -203,7 +232,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="relative z-10 flex-1 overflow-y-auto p-6 space-y-5">
           {error && (
             <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/25 text-xs text-red-400 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />

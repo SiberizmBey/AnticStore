@@ -253,17 +253,9 @@ export function SignalsPopover({ onSelectAppById }: SignalsPopoverProps) {
 
       {/* Bottom-Right Standalone Sinyaller Capsule */}
       <div
-        className={`koza-nav-capsule relative flex items-center p-1.5 rounded-full bg-island border shadow-lg shrink-0 transition-all backdrop-blur-md ${
+        className={`koza-nav-capsule relative flex items-center p-1.5 rounded-full bg-island border shrink-0 transition-colors backdrop-blur-md ${
           isOpen || hasUnread ? 'border-accent' : 'border-subtle hover:border-hover'
         }`}
-        style={
-          isOpen || hasUnread
-            ? {
-                boxShadow:
-                  '0 0 0 1px var(--accent-border), 0 8px 24px -6px rgba(var(--accent-rgb), 0.45)',
-              }
-            : undefined
-        }
       >
         <button
           type="button"

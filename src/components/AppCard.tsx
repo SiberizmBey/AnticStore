@@ -111,9 +111,16 @@ export function AppCard({ app, onSelect }: AppCardProps) {
               imageClassName="h-full w-full object-contain rounded-xl"
             />
             <div className="min-w-0">
-              <h3 className="font-bold text-sm sm:text-base text-primary tracking-tight group-hover:accent-text transition-colors truncate">
-                {app.name}
-              </h3>
+              <div className="flex items-center gap-2 min-w-0">
+                <h3 className="font-bold text-sm sm:text-base text-primary tracking-tight group-hover:accent-text transition-colors truncate">
+                  {app.name}
+                </h3>
+                {isNew && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
+                    Yeni
+                  </span>
+                )}
+              </div>
               <p className="text-[11px] text-muted truncate mt-0.5">
                 {app.developer} · {app.category}
               </p>

@@ -218,9 +218,16 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Son Güncellenen Uygulama</span>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-primary tracking-tight truncate">
-                  {latestUpdatedApp.name}
-                </h2>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <h2 className="text-xl sm:text-2xl font-bold text-primary tracking-tight truncate">
+                    {latestUpdatedApp.name}
+                  </h2>
+                  {latestUpdatedApp.new && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold badge-koza shrink-0">
+                      Yeni
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs sm:text-sm text-secondary max-w-3xl leading-relaxed">
                   {latestUpdatedApp.description}
                 </p>
@@ -475,10 +482,17 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                             className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-subtle bg-inner p-1"
                             imageClassName="h-full w-full object-contain rounded-lg"
                           />
-                          <div>
-                            <span className="font-bold text-primary block group-hover:accent-text transition-colors">
-                              {app.name}
-                            </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-primary block group-hover:accent-text transition-colors truncate">
+                                {app.name}
+                              </span>
+                              {app.new && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
+                                  Yeni
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[11px] text-muted">
                               {app.developer} · {app.category}
                             </span>
