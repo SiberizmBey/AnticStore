@@ -19,7 +19,7 @@ export function AppIcon({
 }: AppIconProps) {
   const { src: imageSrc, failed, markFailed } = useCachedMedia(iconUrl);
   const initial = (name || 'A').trim().charAt(0).toUpperCase();
-  const grayscaleFilterClass = grayscale ? 'grayscale opacity-75' : '';
+  const grayscaleFilterClass = grayscale ? 'app-icon-grayscale grayscale opacity-75' : '';
 
   return (
     <div className={className}>

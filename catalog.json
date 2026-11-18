@@ -25,6 +25,24 @@
             "announcedAt": "11.01.2026",
             "releaseDate": "16.11.2026",
             "upcomingUpdateDate": "18.11.2026",
+            "comingSoon": true,
+            "requirements": {
+                "os": ["windows"],
+                "minOsVersion": "Windows 10 / 11 (64-bit)",
+                "arch": ["x64"],
+                "minRamGb": 4,
+                "minDiskMb": 450,
+                "runtimes": ["WebView2"],
+                "notes": "Opsiyonel ek not"
+            },
+            "permissions": [
+                "network",
+                "filesystem",
+                "audio",
+                "admin",
+                "notifications",
+                "autostart"
+            ],
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
         {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   X,
   Download,
@@ -55,6 +55,16 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
   const [selectedTag, setSelectedTag] = useState<string>('');
   const [showUninstallConfirm, setShowUninstallConfirm] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [scrollFade, setScrollFade] = useState({ top: false, bottom: false });
+  const rightScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const updateScrollFade = useCallback(() => {
+    const el = rightScrollRef.current;
+    if (!el) return;
+    const top = el.scrollTop > 4;
+    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 4;
+    setScrollFade((prev) => (prev.top === top && prev.bottom === bottom ? prev : { top, bottom }));
+  }, []);
 
   useEffect(() => {
     if (!app) return;
@@ -62,7 +72,23 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
     setShowUninstallConfirm(false);
     setActionNotice(null);
     clearAppError(app.id);
+    if (rightScrollRef.current) {
+      rightScrollRef.current.scrollTop = 0;
+    }
   }, [app?.id]);
+
+  useEffect(() => {
+    const el = rightScrollRef.current;
+    if (!el) return;
+    updateScrollFade();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateScrollFade) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', updateScrollFade);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', updateScrollFade);
+    };
+  }, [app?.id, selectedTag, updateScrollFade]);
 
   const selectedRelease = useMemo(() => {
     if (!app) return null;
@@ -237,22 +263,22 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
         </div>
 
         {/* Body */}
-        <div className="relative z-10 flex-1 overflow-y-auto p-6 space-y-5">
+        <div className="relative z-10 flex-1 min-h-0 flex flex-col gap-5 overflow-y-auto lg:overflow-hidden p-6">
           {error && (
-            <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/25 text-xs text-red-400 flex items-start gap-2">
+            <div className="shrink-0 p-3.5 rounded-2xl bg-red-500/10 border border-red-500/25 text-xs text-red-400 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
           )}
 
           {actionNotice && (
-            <div className="p-3.5 rounded-2xl accent-subtle border accent-border text-xs text-primary leading-relaxed">
+            <div className="shrink-0 p-3.5 rounded-2xl accent-subtle border accent-border text-xs text-primary leading-relaxed">
               {actionNotice}
             </div>
           )}
 
           {app.syncError && (
-            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-300 flex items-start justify-between gap-3">
+            <div className="shrink-0 p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-300 flex items-start justify-between gap-3">
               <span>
                 GitHub sürüm bilgileri alınamadı: {app.syncError}
               </span>
@@ -312,7 +338,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
           </AnimatePresence>
 
           {/* Primary Action & Status Card */}
-          <div className="p-5 rounded-3xl bg-card border border-subtle space-y-4">
+          <div className="shrink-0 p-5 rounded-3xl bg-card border border-subtle space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-xs">
@@ -482,10 +508,10 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
             )}
           </div>
 
-          {/* 2-Column Content: Screenshots (Left) + Hakkında & Version Picker (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* 2-Column Content: Screenshots (Left, Fixed) + Hakkında & Version Picker (Right, Scrollable) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:flex-1 lg:min-h-0">
             {/* Left Column: Screenshots */}
-            <div className="lg:col-span-7 space-y-2.5 min-w-0">
+            <div className="lg:col-span-7 space-y-2.5 min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
               <h4 className="text-[11px] font-bold text-secondary flex items-center gap-1.5">
                 <Image className="w-3.5 h-3.5 accent-text" />
                 <span>Ekran Görüntüleri</span>
@@ -498,7 +524,13 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
             </div>
 
             {/* Right Column: Description + Dates + Version History / Release Picker */}
-            <div className="lg:col-span-5 space-y-4 min-w-0">
+            <div
+              ref={rightScrollRef}
+              onScroll={updateScrollFade}
+              data-fade-top={scrollFade.top ? 'true' : 'false'}
+              data-fade-bottom={scrollFade.bottom ? 'true' : 'false'}
+              className="lg:col-span-5 space-y-4 min-w-0 lg:min-h-0 lg:overflow-y-auto lg:pr-1.5 lg:pb-1 scroll-fade-y"
+            >
               <div className="space-y-1.5">
                 <h3 className="text-xs font-bold text-primary uppercase tracking-wider">Hakkında</h3>
                 <p className="text-xs sm:text-sm text-secondary leading-relaxed">
@@ -549,7 +581,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                   </div>
 
                   {selectedRelease?.notes ? (
-                    <pre className="p-3 rounded-xl bg-inner border border-subtle text-xs text-secondary whitespace-pre-wrap font-sans leading-relaxed max-h-44 overflow-y-auto">
+                    <pre className="p-3 rounded-xl bg-inner border border-subtle text-xs text-secondary whitespace-pre-wrap font-sans leading-relaxed">
                       {selectedRelease.notes}
                     </pre>
                   ) : (
@@ -564,7 +596,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                       <span className="text-[11px] font-semibold text-muted block">
                         Kurulum Dosyaları ({selectedRelease.assets.length})
                       </span>
-                      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
+                      <div className="space-y-1.5">
                         {selectedRelease.assets.map((asset) => (
                           <div
                             key={asset.name}
@@ -617,7 +649,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
           </div>
 
           {/* Source & Metadata Footer */}
-          <div className="pt-2 text-[11px] text-muted flex flex-wrap items-center justify-between gap-2 border-t border-subtle">
+          <div className="shrink-0 pt-2 text-[11px] text-muted flex flex-wrap items-center justify-between gap-2 border-t border-subtle">
             <span>Kaynak: {app.sourceLabel}</span>
             <span>Son eşitleme: {formatTurkishDate(app.syncedAt)}</span>
           </div>

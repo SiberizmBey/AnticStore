@@ -378,3 +378,23 @@ html[data-theme="light"] .card-update-spotlight-cursor {
     transparent 75%
   );
 }
+
+@media (min-width: 1024px) {
+  .scroll-fade-y[data-fade-top="true"][data-fade-bottom="true"] {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0px, rgba(0, 0, 0, 0.55) 10px, #000 24px, #000 calc(100% - 28px), rgba(0, 0, 0, 0.55) calc(100% - 10px), transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0px, rgba(0, 0, 0, 0.55) 10px, #000 24px, #000 calc(100% - 28px), rgba(0, 0, 0, 0.55) calc(100% - 10px), transparent 100%);
+  }
+  .scroll-fade-y[data-fade-top="true"][data-fade-bottom="false"] {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0px, rgba(0, 0, 0, 0.55) 10px, #000 24px, #000 100%);
+    mask-image: linear-gradient(to bottom, transparent 0px, rgba(0, 0, 0, 0.55) 10px, #000 24px, #000 100%);
+  }
+  .scroll-fade-y[data-fade-top="false"][data-fade-bottom="true"] {
+    -webkit-mask-image: linear-gradient(to bottom, #000 0px, #000 calc(100% - 28px), rgba(0, 0, 0, 0.55) calc(100% - 10px), transparent 100%);
+    mask-image: linear-gradient(to bottom, #000 0px, #000 calc(100% - 28px), rgba(0, 0, 0, 0.55) calc(100% - 10px), transparent 100%);
+  }
+}
+
+.app-icon-grayscale {
+  filter: grayscale(100%) saturate(0%) contrast(0.95) !important;
+  opacity: 0.72;
+}

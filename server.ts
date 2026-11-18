@@ -196,6 +196,7 @@ async function createServer() {
   });
 
   app.get('/api/catalog/official', async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     const cacheKey = 'official:SiberizmBey/AnticStore';
     const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
     const cached = forceRefresh ? null : getCached(cacheKey);
@@ -204,7 +205,7 @@ async function createServer() {
       return;
     }
 
-    const cacheBuster = Date.now();
+    const cacheBuster = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const remoteCandidates = [
       `https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/catalog.json?t=${cacheBuster}`,
       `https://raw.githubusercontent.com/SiberizmBey/AnticStore/master/catalog.json?t=${cacheBuster}`,
@@ -213,7 +214,13 @@ async function createServer() {
     for (const candidate of remoteCandidates) {
       try {
         const upstream = await fetch(candidate, {
-          headers: { 'User-Agent': 'Koru/1.0', Accept: 'application/json' },
+          cache: 'no-store',
+          headers: {
+            'User-Agent': 'Koru/1.0',
+            Accept: 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+          },
         });
         if (upstream.ok) {
           const data = (await upstream.json()) as Record<string, unknown>;
@@ -246,6 +253,7 @@ async function createServer() {
   });
 
   app.get('/api/signals/official', async (req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     const cacheKey = 'signals:SiberizmBey/AnticStore';
     const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
     const cached = forceRefresh ? null : getCached(cacheKey);
@@ -254,7 +262,7 @@ async function createServer() {
       return;
     }
 
-    const cacheBuster = Date.now();
+    const cacheBuster = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const remoteSignalCandidates = [
       `https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/signals.json?t=${cacheBuster}`,
       `https://raw.githubusercontent.com/SiberizmBey/AnticStore/master/signals.json?t=${cacheBuster}`,
@@ -263,7 +271,13 @@ async function createServer() {
     for (const candidate of remoteSignalCandidates) {
       try {
         const upstream = await fetch(candidate, {
-          headers: { 'User-Agent': 'Koru/1.0', Accept: 'application/json' },
+          cache: 'no-store',
+          headers: {
+            'User-Agent': 'Koru/1.0',
+            Accept: 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            Pragma: 'no-cache',
+          },
         });
         if (upstream.ok) {
           const data = (await upstream.json()) as Record<string, unknown>;

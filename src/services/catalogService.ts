@@ -133,6 +133,17 @@ async function fetchGitHubBundle(repoSlug: string): Promise<GitHubRepoBundle> {
   return fetchJsonSmart<GitHubRepoBundle>(`/api/github/repo?repo=${encodeURIComponent(repoSlug)}`);
 }
 
+function parseDownloadableFlag(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+  }
+  if (typeof value === 'number') return value !== 0;
+  return undefined;
+}
+
 function inferCategory(name: string, summary: string, topics: string[]): string {
   const haystack = `${name} ${summary} ${topics.join(' ')}`.toLowerCase();
   if (/(ses|sound|audio|music|soundpad|lir)/.test(haystack)) return 'Ses & Medya';
@@ -231,8 +242,9 @@ function mapBundleToStoreApp(
     repoInfo.owner?.avatar_url;
   const screenshots = override?.screenshots || manifest.screenshots;
 
-  const rawDownloadable = override?.downloadable ?? manifest.downloadable;
-  const downloadable = rawDownloadable !== false;
+  const overrideDownloadable = parseDownloadableFlag(override?.downloadable);
+  const manifestDownloadable = parseDownloadableFlag(manifest.downloadable);
+  const downloadable = (overrideDownloadable ?? manifestDownloadable) !== false;
   const announcedAt = override?.announcedAt || manifest.announcedAt;
   const releaseDate =
     override?.releaseDate ||
@@ -315,7 +327,7 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
     websiteUrl: entry.websiteUrl || entry.downloadUrl || 'https://anticvalley.com.tr',
     featured: Boolean(entry.featured),
     new: Boolean(entry.new),
-    downloadable: entry.downloadable !== false,
+    downloadable: parseDownloadableFlag(entry.downloadable) !== false,
     announcedAt: entry.announcedAt || undefined,
     releaseDate: entry.releaseDate || entry.publishedAt || undefined,
     upcomingUpdateDate: entry.upcomingUpdateDate || undefined,
