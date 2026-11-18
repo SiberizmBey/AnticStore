@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Search,
   Grid,
@@ -12,6 +12,16 @@ import {
   CheckCircle2,
   X,
   Ban,
+  Bell,
+  BellRing,
+  ShieldCheck,
+  ShieldAlert,
+  Briefcase,
+  FolderKanban,
+  Layers,
+  Code2,
+  Gamepad2,
+  Clock,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -24,24 +34,40 @@ import {
   isUpdateAvailable,
   pickPreferredAsset,
 } from '../utils/semver';
-import type { StoreApp } from '../types';
+import { evaluateCompatibility } from '../utils/compatibility';
+import type { CatalogDefinition, StoreApp } from '../types';
 
 interface StoreViewProps {
   onSelectApp: (app: StoreApp) => void;
 }
 
-type StatusFilter = 'all' | 'installed' | 'updates';
+type StatusFilter = 'all' | 'installed' | 'updates' | 'upcoming';
+
+function getCatalogIcon(catalogId: string, label: string, sizeClass = 'w-4 h-4') {
+  const key = `${catalogId} ${label}`.toLowerCase();
+  if (/(job|iş|erp|crm|kurumsal|enterprise|ofis)/.test(key)) {
+    return <Briefcase className={sizeClass} />;
+  }
+  if (/(dev|code|geliştirici|sdk|cli|api)/.test(key)) {
+    return <Code2 className={sizeClass} />;
+  }
+  if (/(game|oyun|arcade)/.test(key)) {
+    return <Gamepad2 className={sizeClass} />;
+  }
+  return <FolderKanban className={sizeClass} />;
+}
 
 export function StoreView({ onSelectApp }: StoreViewProps) {
   const {
     apps,
+    catalogs,
+    activeCatalog,
+    setActiveCatalog,
     installedMap,
     tasks,
     isSyncing,
     syncError,
     platformInfo,
-    updatableApps,
-    installedApps,
     githubTokenConfigured,
     githubTokenStatusLoaded,
     syncCatalog,
@@ -49,6 +75,8 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
     updateApp,
     launchApp,
     cancelTask,
+    isFollowingApp,
+    toggleFollowApp,
   } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -60,30 +88,70 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
   ) || /403|rate.?limit/i.test(syncError || '');
   const hasGitHubRepoError = apps.some((app) => /404|not found/i.test(app.syncError || ''));
 
+  const activeCatalogDef = useMemo(
+    () => (activeCatalog === 'all' ? null : catalogs.find((c) => c.id === activeCatalog) || null),
+    [activeCatalog, catalogs]
+  );
+
+  const catalogScopedApps = useMemo(() => {
+    if (activeCatalog === 'all') return apps;
+    return apps.filter((a) => a.catalogId === activeCatalog);
+  }, [apps, activeCatalog]);
+
   const categories = useMemo(() => {
     const set = new Set<string>(['Tümü']);
-    for (const app of apps) {
+    for (const app of catalogScopedApps) {
       if (app.category) set.add(app.category);
     }
     return Array.from(set);
-  }, [apps]);
+  }, [catalogScopedApps]);
+
+  useEffect(() => {
+    if (selectedCategory !== 'Tümü' && !categories.includes(selectedCategory)) {
+      setSelectedCategory('Tümü');
+    }
+  }, [categories, selectedCategory]);
 
   const latestUpdatedApp = useMemo(() => {
-    if (apps.length === 0) return null;
-    return [...apps].sort((a, b) => {
+    const releasedPool = catalogScopedApps.filter(
+      (a) => a.downloadable !== false && !a.comingSoon
+    );
+    if (releasedPool.length === 0) return null;
+    return [...releasedPool].sort((a, b) => {
       const timeA = new Date(a.latestRelease?.publishedAt || a.syncedAt).getTime() || 0;
       const timeB = new Date(b.latestRelease?.publishedAt || b.syncedAt).getTime() || 0;
       return timeB - timeA;
     })[0];
-  }, [apps]);
+  }, [catalogScopedApps]);
+
+  const scopedInstalledCount = useMemo(
+    () => catalogScopedApps.filter((a) => Boolean(installedMap[a.id])).length,
+    [catalogScopedApps, installedMap]
+  );
+
+  const scopedUpdatableCount = useMemo(
+    () =>
+      catalogScopedApps.filter((a) => {
+        const inst = installedMap[a.id];
+        return Boolean(inst && isUpdateAvailable(inst.version, a.latestVersion));
+      }).length,
+    [catalogScopedApps, installedMap]
+  );
+
+  const upcomingAppsCount = useMemo(
+    () => catalogScopedApps.filter((a) => a.downloadable === false || a.comingSoon).length,
+    [catalogScopedApps]
+  );
 
   const filteredApps = useMemo(() => {
-    return apps.filter((app) => {
+    return catalogScopedApps.filter((app) => {
       const installed = installedMap[app.id];
       const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
+      const isComingSoon = app.downloadable === false || Boolean(app.comingSoon);
 
       if (statusFilter === 'installed' && !installed) return false;
       if (statusFilter === 'updates' && !hasUpdate) return false;
+      if (statusFilter === 'upcoming' && !isComingSoon) return false;
 
       if (selectedCategory !== 'Tümü' && app.category !== selectedCategory) {
         return false;
@@ -96,17 +164,52 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
           app.id.toLowerCase().includes(q) ||
           app.developer.toLowerCase().includes(q) ||
           app.summary.toLowerCase().includes(q) ||
-          app.category.toLowerCase().includes(q)
+          app.category.toLowerCase().includes(q) ||
+          app.catalogLabel.toLowerCase().includes(q)
         );
       }
 
       return true;
     });
-  }, [apps, installedMap, statusFilter, selectedCategory, searchQuery]);
+  }, [catalogScopedApps, installedMap, statusFilter, selectedCategory, searchQuery]);
+
+  const groupedSections = useMemo(() => {
+    const orderMap = new Map<string, CatalogDefinition>();
+    for (const def of catalogs) {
+      orderMap.set(def.id, def);
+    }
+
+    const buckets = new Map<string, { catalog: CatalogDefinition; apps: StoreApp[] }>();
+    for (const app of filteredApps) {
+      const existing = buckets.get(app.catalogId);
+      if (existing) {
+        existing.apps.push(app);
+      } else {
+        const def = orderMap.get(app.catalogId) || {
+          id: app.catalogId,
+          label: app.catalogLabel,
+        };
+        buckets.set(app.catalogId, {
+          catalog: def,
+          apps: [app],
+        });
+      }
+    }
+
+    return Array.from(buckets.values()).sort(
+      (a, b) =>
+        (a.catalog.order ?? 99) - (b.catalog.order ?? 99) ||
+        a.catalog.label.localeCompare(b.catalog.label, 'tr')
+    );
+  }, [filteredApps, catalogs]);
 
   const spotlightInstalled = latestUpdatedApp ? installedMap[latestUpdatedApp.id] : undefined;
   const spotlightTask = latestUpdatedApp ? tasks[latestUpdatedApp.id] : undefined;
   const spotlightDownloadable = latestUpdatedApp ? latestUpdatedApp.downloadable !== false : true;
+  const spotlightFollowing = latestUpdatedApp ? isFollowingApp(latestUpdatedApp.id) : false;
+  const spotlightCompatibility = latestUpdatedApp
+    ? evaluateCompatibility(latestUpdatedApp, platformInfo)
+    : null;
   const spotlightHasUpdate = Boolean(
     latestUpdatedApp &&
       spotlightInstalled &&
@@ -129,17 +232,35 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl border accent-border accent-subtle p-2.5 accent-text">
-            <Store className="h-5 w-5" />
+            {activeCatalogDef ? (
+              getCatalogIcon(activeCatalogDef.id, activeCatalogDef.label, 'h-5 w-5')
+            ) : (
+              <Store className="h-5 w-5" />
+            )}
           </div>
           <div>
-            <h1 className="text-xl font-bold text-primary">Uygulama Mağazası</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-bold text-primary">
+                {activeCatalogDef ? `${activeCatalogDef.label} Kataloğu` : 'Uygulama Mağazası'}
+              </h1>
+              {activeCatalogDef && (
+                <button
+                  type="button"
+                  onClick={() => setActiveCatalog('all')}
+                  className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-card border border-subtle text-secondary hover:text-primary hover:bg-card-hover transition-colors cursor-pointer"
+                >
+                  Tüm Kataloglar
+                </button>
+              )}
+            </div>
             <p className="mt-1 text-xs text-muted">
-              Hesap girişi gerektirmeden uygulamaları keşfedin, kurun, güncelleyin veya kaldırın.
+              {activeCatalogDef?.description ||
+                'Hesap girişi gerektirmeden uygulamaları keşfedin, kurun, güncelleyin veya kaldırın.'}
             </p>
           </div>
         </div>
 
-        {apps.length > 0 && (
+        {catalogScopedApps.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
@@ -150,7 +271,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   : 'bg-card border-subtle text-secondary hover:bg-card-hover'
               }`}
             >
-              Tümü ({apps.length})
+              Tümü ({catalogScopedApps.length})
             </button>
             <button
               type="button"
@@ -161,7 +282,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   : 'bg-card border-subtle text-secondary hover:bg-card-hover'
               }`}
             >
-              Kurulu ({installedApps.length})
+              Kurulu ({scopedInstalledCount})
             </button>
             <button
               type="button"
@@ -172,8 +293,21 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   : 'bg-card border-subtle text-secondary hover:bg-card-hover'
               }`}
             >
-              Güncellemeler ({updatableApps.length})
+              Güncellemeler ({scopedUpdatableCount})
             </button>
+            {upcomingAppsCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setStatusFilter('upcoming')}
+                className={`px-3 py-1.5 rounded-full font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
+                  statusFilter === 'upcoming'
+                    ? 'btn-primary-koza'
+                    : 'bg-card border-subtle text-secondary hover:bg-card-hover'
+                }`}
+              >
+                Yakında ({upcomingAppsCount})
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -270,11 +404,54 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                       <span>Yaklaşan: {formatTurkishDate(latestUpdatedApp.upcomingUpdateDate)}</span>
                     </>
                   )}
+                  {spotlightCompatibility && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span
+                        className={`inline-flex items-center gap-1 font-sans font-semibold ${
+                          spotlightCompatibility.status === 'compatible'
+                            ? 'text-emerald-400'
+                            : spotlightCompatibility.status === 'partial'
+                            ? 'text-amber-400'
+                            : 'text-red-400'
+                        }`}
+                      >
+                        {spotlightCompatibility.status === 'compatible' ? (
+                          <ShieldCheck className="w-3.5 h-3.5" />
+                        ) : (
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                        )}
+                        <span>{spotlightCompatibility.badgeLabel}</span>
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              {(!spotlightDownloadable || latestUpdatedApp.comingSoon) && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void toggleFollowApp(latestUpdatedApp);
+                  }}
+                  className={`px-4 py-2.5 rounded-full border text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors ${
+                    spotlightFollowing
+                      ? 'accent-subtle accent-border accent-text'
+                      : 'bg-inner border-subtle text-primary hover:bg-card-hover'
+                  }`}
+                >
+                  {spotlightFollowing ? (
+                    <BellRing className="w-4 h-4" />
+                  ) : (
+                    <Bell className="w-4 h-4" />
+                  )}
+                  <span>{spotlightFollowing ? 'Takipte' : 'Bildirim Aç'}</span>
+                </button>
+              )}
+
               {spotlightTask ? (
                 <button
                   type="button"
@@ -401,25 +578,68 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
         </div>
       </div>
 
-      {/* Category Filter Bar */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-        {categories.map((cat) => {
-          const isSelected = selectedCategory === cat;
-          return (
+      {/* Catalog & Category Filter Bars */}
+      <div className="space-y-2.5">
+        {catalogs.length > 1 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+            <span className="text-[11px] font-semibold text-muted flex items-center gap-1 mr-1 shrink-0">
+              <Layers className="w-3.5 h-3.5 accent-text" />
+              <span>Katalog:</span>
+            </span>
             <button
-              key={cat}
               type="button"
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer ${
-                isSelected
+              onClick={() => setActiveCatalog('all')}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
+                activeCatalog === 'all'
                   ? 'btn-primary-koza shadow-xs'
                   : 'bg-card hover:bg-card-hover text-secondary border border-subtle'
               }`}
             >
-              {cat}
+              <span>Tüm Kataloglar</span>
+              <span className="text-[10px] opacity-80 tabular-nums">({apps.length})</span>
             </button>
-          );
-        })}
+            {catalogs.map((cat) => {
+              const isSelected = activeCatalog === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveCatalog(cat.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? 'btn-primary-koza shadow-xs'
+                      : 'bg-card hover:bg-card-hover text-secondary border border-subtle'
+                  }`}
+                >
+                  {getCatalogIcon(cat.id, cat.label, 'w-3.5 h-3.5')}
+                  <span>{cat.label}</span>
+                  <span className="text-[10px] opacity-80 tabular-nums">({cat.count || 0})</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Category Filter Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          {categories.map((cat) => {
+            const isSelected = selectedCategory === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer ${
+                  isSelected
+                    ? 'btn-primary-koza shadow-xs'
+                    : 'bg-card hover:bg-card-hover text-secondary border border-subtle'
+                }`}
+              >
+                {cat}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Content Area */}
@@ -461,143 +681,273 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
               setSearchQuery('');
               setSelectedCategory('Tümü');
               setStatusFilter('all');
+              setActiveCatalog('all');
             }}
             className="accent-text font-semibold hover:underline cursor-pointer"
           >
             Filtreleri Temizle
           </button>
         </div>
-      ) : viewMode === 'grid' ? (
-        <motion.div
-          layout
-          className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4"
-        >
-          {filteredApps.map((app) => (
-            <AppCard key={app.id} app={app} onSelect={onSelectApp} />
-          ))}
-        </motion.div>
       ) : (
-        <div className="rounded-3xl bg-card border border-subtle overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-subtle bg-inner/60 text-muted font-semibold">
-                  <th className="py-3 px-4">Uygulama</th>
-                  <th className="py-3 px-4">Paket Kimliği</th>
-                  <th className="py-3 px-4">Sürüm</th>
-                  <th className="py-3 px-4">Boyut</th>
-                  <th className="py-3 px-4 text-right">İşlem</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-subtle">
-                {filteredApps.map((app) => {
-                  const installed = installedMap[app.id];
-                  const task = tasks[app.id];
-                  const isDownloadable = app.downloadable !== false;
-                  const hasUpdate = Boolean(
-                    installed && isUpdateAvailable(installed.version, app.latestVersion)
-                  );
-                  const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
-                  const asset = app.latestRelease
-                    ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
-                    : null;
+        <div className="space-y-8">
+          {groupedSections.map((section) => {
+            const showSectionHeader = activeCatalog === 'all' && catalogs.length > 1;
+            const readyApps =
+              statusFilter === 'upcoming'
+                ? []
+                : section.apps.filter((a) => a.downloadable !== false && !a.comingSoon);
+            const upcomingApps = section.apps.filter(
+              (a) => a.downloadable === false || Boolean(a.comingSoon)
+            );
+            const orderedTableApps = [...readyApps, ...upcomingApps];
 
-                  return (
-                    <tr
-                      key={app.id}
-                      onClick={() => onSelectApp(app)}
-                      className="hover:bg-card-hover transition-colors cursor-pointer group"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <AppIcon
-                            name={app.name}
-                            iconUrl={app.iconUrl}
-                            cacheKey={app.syncedAt}
-                            grayscale={!isDownloadable}
-                            className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-subtle bg-inner p-1"
-                            imageClassName="h-full w-full object-contain rounded-lg"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-primary block group-hover:accent-text transition-colors truncate">
-                                {app.name}
-                              </span>
-                              {app.new && (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
-                                  Yeni
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-muted">
-                              {app.developer} · {app.category}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-secondary">{app.id}</td>
-                      <td className="py-3 px-4 font-mono tabular-nums">
-                        <span className="text-primary font-semibold">v{app.latestVersion}</span>
-                        {installed && (
-                          <span className="block text-[10px] text-emerald-400">
-                            Kurulu: v{installed.version}
+            return (
+              <section key={section.catalog.id} className="space-y-4">
+                {showSectionHeader && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-subtle">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-xl accent-subtle border accent-border accent-text flex items-center justify-center shrink-0">
+                        {getCatalogIcon(section.catalog.id, section.catalog.label, 'w-4 h-4')}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-sm font-bold text-primary truncate">
+                            {section.catalog.label}
+                          </h2>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-card border border-subtle text-muted tabular-nums">
+                            {section.apps.length} uygulama
                           </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 font-mono tabular-nums text-muted">
-                        {asset && asset.size > 0 ? formatBytes(asset.size) : '—'}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-2">
-                          <button
-                            type="button"
-                            disabled={isDownloadBlocked || (!asset && !installed && !task)}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (task) void cancelTask(app.id);
-                              else if (isDownloadBlocked) return;
-                              else if (hasUpdate) void updateApp(app);
-                              else if (installed)
-                                void launchApp(app).then((r) => {
-                                  if (!r.launched) onSelectApp(app);
-                                });
-                              else void installApp(app);
-                            }}
-                            className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap ${
-                              isDownloadBlocked
-                                ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
-                                : hasUpdate || !installed
-                                ? 'btn-primary-koza cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
-                                : 'bg-inner border border-subtle text-primary cursor-pointer'
-                            }`}
-                          >
-                            {task ? (
-                              `${task.percent}%`
-                            ) : isDownloadBlocked ? (
-                              <span className="inline-flex items-center gap-1">
-                                <Ban className="w-3 h-3" />
-                                İndirilemez
-                              </span>
-                            ) : hasUpdate ? (
-                              'Güncelle'
-                            ) : installed ? (
-                              <span className="inline-flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                Aç
-                              </span>
-                            ) : (
-                              'Yükle'
-                            )}
-                          </button>
-                          <ChevronRight className="w-4 h-4 text-muted group-hover:text-primary" />
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {section.catalog.description && (
+                          <p className="text-[11px] text-muted truncate">
+                            {section.catalog.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveCatalog(section.catalog.id)}
+                      className="px-3 py-1 rounded-full text-[11px] font-semibold bg-card hover:bg-card-hover border border-subtle text-secondary hover:text-primary transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <span>Ayrı Göster</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {viewMode === 'grid' ? (
+                  <div className="space-y-5">
+                    {readyApps.length > 0 && (
+                      <motion.div
+                        layout
+                        className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4"
+                      >
+                        {readyApps.map((app) => (
+                          <AppCard key={app.id} app={app} onSelect={onSelectApp} />
+                        ))}
+                      </motion.div>
+                    )}
+
+                    {upcomingApps.length > 0 && (
+                      <div className="space-y-3">
+                        {statusFilter !== 'upcoming' && (
+                          <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-2xl border border-dashed border-amber-500/35 bg-amber-500/[0.04]">
+                            <div className="flex items-center gap-2 text-xs">
+                              <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                              <span className="font-bold text-amber-400">
+                                Yakında Yayınlanacaklar ({upcomingApps.length})
+                              </span>
+                              <span className="hidden sm:inline text-[11px] text-muted">
+                                · Henüz indirmeye açılmadı, bildirim açarak takibe alabilirsiniz
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        <motion.div
+                          layout
+                          className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4"
+                        >
+                          {upcomingApps.map((app) => (
+                            <AppCard key={app.id} app={app} onSelect={onSelectApp} />
+                          ))}
+                        </motion.div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl bg-card border border-subtle overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-subtle bg-inner/60 text-muted font-semibold">
+                            <th className="py-3 px-4">Uygulama</th>
+                            <th className="py-3 px-4">Paket Kimliği</th>
+                            <th className="py-3 px-4">Sürüm</th>
+                            <th className="py-3 px-4">Boyut</th>
+                            <th className="py-3 px-4 text-right">İşlem</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-subtle">
+                          {orderedTableApps.map((app) => {
+                            const installed = installedMap[app.id];
+                            const task = tasks[app.id];
+                            const isDownloadable = app.downloadable !== false;
+                            const isComingSoon = !isDownloadable || Boolean(app.comingSoon);
+                            const following = isFollowingApp(app.id);
+                            const compatibility = evaluateCompatibility(app, platformInfo);
+                            const hasUpdate = Boolean(
+                              installed && isUpdateAvailable(installed.version, app.latestVersion)
+                            );
+                            const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
+                            const asset = app.latestRelease
+                              ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
+                              : null;
+
+                            return (
+                              <tr
+                                key={app.id}
+                                onClick={() => onSelectApp(app)}
+                                className={`hover:bg-card-hover transition-colors cursor-pointer group ${
+                                  isComingSoon ? 'bg-amber-500/[0.025]' : ''
+                                }`}
+                              >
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2.5">
+                                    <AppIcon
+                                      name={app.name}
+                                      iconUrl={app.iconUrl}
+                                      cacheKey={app.syncedAt}
+                                      grayscale={!isDownloadable}
+                                      className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-subtle bg-inner p-1"
+                                      imageClassName="h-full w-full object-contain rounded-lg"
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-bold text-primary block group-hover:accent-text transition-colors truncate">
+                                          {app.name}
+                                        </span>
+                                        {app.new && !isComingSoon && (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
+                                            Yeni
+                                          </span>
+                                        )}
+                                        {isComingSoon && (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/12 border border-amber-500/35 text-amber-400 shrink-0">
+                                            <Clock className="w-2.5 h-2.5 shrink-0" />
+                                            <span>Yakında</span>
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2 text-[11px] text-muted">
+                                        <span>
+                                          {app.developer} · {app.category}
+                                        </span>
+                                        <span
+                                          className={`inline-flex items-center gap-1 font-semibold ${
+                                            compatibility.status === 'compatible'
+                                              ? 'text-emerald-400'
+                                              : compatibility.status === 'partial'
+                                              ? 'text-amber-400'
+                                              : 'text-red-400'
+                                          }`}
+                                        >
+                                          · {compatibility.badgeLabel}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 font-mono text-secondary">{app.id}</td>
+                                <td className="py-3 px-4 font-mono tabular-nums">
+                                  <span className="text-primary font-semibold">v{app.latestVersion}</span>
+                                  {installed && (
+                                    <span className="block text-[10px] text-emerald-400">
+                                      Kurulu: v{installed.version}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 font-mono tabular-nums text-muted">
+                                  {asset && asset.size > 0 ? formatBytes(asset.size) : '—'}
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <div className="inline-flex items-center gap-2">
+                                    {isComingSoon && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void toggleFollowApp(app);
+                                        }}
+                                        className={`px-2.5 py-1.5 rounded-full border text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                                          following
+                                            ? 'accent-subtle accent-border accent-text'
+                                            : 'bg-inner border-subtle text-primary hover:bg-card-hover'
+                                        }`}
+                                      >
+                                        {following ? (
+                                          <BellRing className="w-3 h-3" />
+                                        ) : (
+                                          <Bell className="w-3 h-3" />
+                                        )}
+                                        <span>{following ? 'Takipte' : 'Bildirim Aç'}</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      disabled={isDownloadBlocked || (!asset && !installed && !task)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (task) void cancelTask(app.id);
+                                        else if (isDownloadBlocked) return;
+                                        else if (hasUpdate) void updateApp(app);
+                                        else if (installed)
+                                          void launchApp(app).then((r) => {
+                                            if (!r.launched) onSelectApp(app);
+                                          });
+                                        else void installApp(app);
+                                      }}
+                                      className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap ${
+                                        isDownloadBlocked
+                                          ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                                          : hasUpdate || !installed
+                                          ? 'btn-primary-koza cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
+                                          : 'bg-inner border border-subtle text-primary cursor-pointer'
+                                      }`}
+                                    >
+                                      {task ? (
+                                        `${task.percent}%`
+                                      ) : isDownloadBlocked ? (
+                                        <span className="inline-flex items-center gap-1">
+                                          <Ban className="w-3 h-3" />
+                                          İndirilemez
+                                        </span>
+                                      ) : hasUpdate ? (
+                                        'Güncelle'
+                                      ) : installed ? (
+                                        <span className="inline-flex items-center gap-1">
+                                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                          Aç
+                                        </span>
+                                      ) : (
+                                        'Yükle'
+                                      )}
+                                    </button>
+                                    <ChevronRight className="w-4 h-4 text-muted group-hover:text-primary" />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
       )}
     </div>

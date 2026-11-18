@@ -8,6 +8,11 @@ import {
   CheckCircle2,
   AlertCircle,
   Ban,
+  Bell,
+  BellRing,
+  ShieldCheck,
+  ShieldAlert,
+  Clock,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -19,6 +24,7 @@ import {
   isUpdateAvailable,
   pickPreferredAsset,
 } from '../utils/semver';
+import { evaluateCompatibility } from '../utils/compatibility';
 import type { StoreApp } from '../types';
 
 interface AppCardProps {
@@ -36,15 +42,20 @@ export function AppCard({ app, onSelect }: AppCardProps) {
     updateApp,
     launchApp,
     cancelTask,
+    isFollowingApp,
+    toggleFollowApp,
   } = useStore();
 
   const installed = installedMap[app.id];
   const task = tasks[app.id];
   const error = appErrors[app.id];
   const isDownloadable = app.downloadable !== false;
+  const isComingSoon = !isDownloadable || Boolean(app.comingSoon);
+  const following = isFollowingApp(app.id);
+  const compatibility = evaluateCompatibility(app, platformInfo);
   const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
   const isNew = Boolean(app.new);
-  const hasSpotlight = hasUpdate || isNew;
+  const hasSpotlight = !isComingSoon && (hasUpdate || isNew);
   const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
   const preferredAsset = app.latestRelease
     ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
@@ -89,7 +100,9 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       onClick={() => onSelect(app)}
       onMouseMove={handleMouseMove}
       className={`group relative overflow-hidden flex flex-col justify-between p-5 rounded-3xl bg-card border ${
-        hasSpotlight
+        isComingSoon
+          ? 'card-coming-soon'
+          : hasSpotlight
           ? 'card-update-spotlight border-card hover:border-hover'
           : 'border-card hover:border-hover'
       } hover:bg-card-hover transition-all duration-150 cursor-pointer select-none`}
@@ -123,9 +136,15 @@ export function AppCard({ app, onSelect }: AppCardProps) {
                 <h3 className="font-bold text-sm sm:text-base text-primary tracking-tight group-hover:accent-text transition-colors truncate">
                   {app.name}
                 </h3>
-                {isNew && (
+                {isNew && !isComingSoon && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
                     Yeni
+                  </span>
+                )}
+                {isComingSoon && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/12 border border-amber-500/35 text-amber-400 shrink-0">
+                    <Clock className="w-2.5 h-2.5 shrink-0" />
+                    <span>Yakında</span>
                   </span>
                 )}
               </div>
@@ -191,16 +210,35 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             </div>
           )}
 
-          {(app.announcedAt || app.releaseDate || app.upcomingUpdateDate) && (
+          {(app.announcedAt || app.releaseDate || app.upcomingUpdateDate || compatibility) && (
             <div className="pt-2 border-t border-subtle/60 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-muted font-mono tabular-nums">
-              {app.releaseDate ? (
-                <span>Yayın: {formatTurkishDate(app.releaseDate)}</span>
-              ) : app.announcedAt ? (
-                <span>Duyuru: {formatTurkishDate(app.announcedAt)}</span>
-              ) : null}
-              {app.upcomingUpdateDate && (
-                <span>Sonraki: {formatTurkishDate(app.upcomingUpdateDate)}</span>
-              )}
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+                {app.releaseDate ? (
+                  <span>Yayın: {formatTurkishDate(app.releaseDate)}</span>
+                ) : app.announcedAt ? (
+                  <span>Duyuru: {formatTurkishDate(app.announcedAt)}</span>
+                ) : null}
+                {app.upcomingUpdateDate && (
+                  <span>Sonraki: {formatTurkishDate(app.upcomingUpdateDate)}</span>
+                )}
+              </div>
+              <span
+                title={compatibility.summary}
+                className={`inline-flex items-center gap-1 font-sans font-semibold ${
+                  compatibility.status === 'compatible'
+                    ? 'text-emerald-400'
+                    : compatibility.status === 'partial'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }`}
+              >
+                {compatibility.status === 'compatible' ? (
+                  <ShieldCheck className="w-3 h-3 shrink-0" />
+                ) : (
+                  <ShieldAlert className="w-3 h-3 shrink-0" />
+                )}
+                <span>{compatibility.badgeLabel}</span>
+              </span>
             </div>
           )}
         </div>
@@ -230,8 +268,11 @@ export function AppCard({ app, onSelect }: AppCardProps) {
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
               <span>Kurulu (v{installed.version})</span>
             </span>
-          ) : !isDownloadable ? (
-            <span className="text-muted">İndirmeye kapalı</span>
+          ) : isComingSoon ? (
+            <span className="text-amber-400 font-semibold flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              <span>{!isDownloadable ? 'Yakında · İndirmeye kapalı' : 'Yakında yayınlanacak'}</span>
+            </span>
           ) : isNew ? (
             <span className="accent-text font-semibold flex items-center gap-1.5">
               <span
@@ -246,47 +287,68 @@ export function AppCard({ app, onSelect }: AppCardProps) {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handlePrimaryAction}
-          disabled={isDownloadBlocked || (!preferredAsset && !installed && !task)}
-          className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
-            isDownloadBlocked
-              ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
-              : task
-              ? 'bg-inner border border-subtle text-secondary hover:text-primary cursor-pointer'
-              : hasUpdate || !installed
-              ? 'btn-primary-koza hover:opacity-90 active:scale-[0.97] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
-              : 'bg-inner border border-subtle hover:bg-card-hover text-primary cursor-pointer'
-          }`}
-        >
-          {task ? (
-            <>
-              <X className="w-3.5 h-3.5" />
-              <span>İptal</span>
-            </>
-          ) : isDownloadBlocked ? (
-            <>
-              <Ban className="w-3.5 h-3.5" />
-              <span>İndirilemez</span>
-            </>
-          ) : hasUpdate ? (
-            <>
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Güncelle</span>
-            </>
-          ) : installed ? (
-            <>
-              <Play className="w-3.5 h-3.5" />
-              <span>Aç</span>
-            </>
-          ) : (
-            <>
-              <Download className="w-3.5 h-3.5" />
-              <span>Yükle</span>
-            </>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {isComingSoon && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void toggleFollowApp(app);
+              }}
+              title={following ? 'Bildirim takibini kapat' : 'Yayınlandığında bildirim al'}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap border ${
+                following
+                  ? 'accent-subtle accent-border accent-text'
+                  : 'bg-inner border-subtle text-primary hover:bg-card-hover'
+              }`}
+            >
+              {following ? <BellRing className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+              <span>{following ? 'Takipte' : 'Bildirim Aç'}</span>
+            </button>
           )}
-        </button>
+
+          <button
+            type="button"
+            onClick={handlePrimaryAction}
+            disabled={isDownloadBlocked || (!preferredAsset && !installed && !task)}
+            className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
+              isDownloadBlocked
+                ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                : task
+                ? 'bg-inner border border-subtle text-secondary hover:text-primary cursor-pointer'
+                : hasUpdate || !installed
+                ? 'btn-primary-koza hover:opacity-90 active:scale-[0.97] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
+                : 'bg-inner border border-subtle hover:bg-card-hover text-primary cursor-pointer'
+            }`}
+          >
+            {task ? (
+              <>
+                <X className="w-3.5 h-3.5" />
+                <span>İptal</span>
+              </>
+            ) : isDownloadBlocked ? (
+              <>
+                <Ban className="w-3.5 h-3.5" />
+                <span>İndirilemez</span>
+              </>
+            ) : hasUpdate ? (
+              <>
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Güncelle</span>
+              </>
+            ) : installed ? (
+              <>
+                <Play className="w-3.5 h-3.5" />
+                <span>Aç</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span>Yükle</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </motion.div>
   );

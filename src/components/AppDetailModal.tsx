@@ -16,6 +16,14 @@ import {
   FileArchive,
   ShieldAlert,
   Ban,
+  Bell,
+  BellRing,
+  ShieldCheck,
+  Cpu,
+  Lock,
+  Wifi,
+  HardDrive,
+  Clock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -29,7 +37,12 @@ import {
   isUpdateAvailable,
   pickPreferredAsset,
 } from '../utils/semver';
-import type { StoreApp, StoreAsset } from '../types';
+import {
+  evaluateCompatibility,
+  inferAppPermissions,
+  inferAppRequirements,
+} from '../utils/compatibility';
+import type { PermissionLevel, StoreApp, StoreAsset } from '../types';
 
 interface AppDetailModalProps {
   app: StoreApp | null;
@@ -50,6 +63,8 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
     cancelTask,
     clearAppError,
     syncCatalog,
+    isFollowingApp,
+    toggleFollowApp,
   } = useStore();
 
   const [selectedTag, setSelectedTag] = useState<string>('');
@@ -106,8 +121,13 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
   const task = tasks[app.id];
   const error = appErrors[app.id];
   const isDownloadable = app.downloadable !== false;
+  const isComingSoon = !isDownloadable || Boolean(app.comingSoon);
+  const following = isFollowingApp(app.id);
+  const compatibility = evaluateCompatibility(app, platformInfo);
+  const { requirements: effectiveRequirements, inferred: reqInferred } = inferAppRequirements(app);
+  const { permissions: effectivePermissions, inferred: permInferred } = inferAppPermissions(app);
   const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
-  const isNew = Boolean(app.new);
+  const isNew = Boolean(app.new) && !isComingSoon;
   const selectedIsDifferent = Boolean(
     installed && selectedRelease && compareSemver(selectedRelease.version, installed.version) !== 0
   );
@@ -216,11 +236,17 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
               imageClassName="h-full w-full object-contain rounded-xl"
             />
             <div className="min-w-0">
-              <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 <h2 className="text-lg font-bold text-primary truncate">{app.name}</h2>
                 {isNew && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
                     Yeni
+                  </span>
+                )}
+                {isComingSoon && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/12 border border-amber-500/35 text-amber-400 shrink-0">
+                    <Clock className="w-2.5 h-2.5 shrink-0" />
+                    <span>Yakında</span>
                   </span>
                 )}
               </div>
@@ -341,7 +367,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
           <div className="shrink-0 p-5 rounded-3xl bg-card border border-subtle space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1">
-                <div className="flex items-center gap-2 text-xs">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
                   {installed ? (
                     <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4" />
@@ -352,9 +378,27 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                   ) : (
                     <span className="text-secondary font-semibold flex items-center gap-1.5">
                       <Package className="w-4 h-4 accent-text" />
-                      <span>Kurulmamış</span>
+                      <span>{isComingSoon ? 'Yakında Yayınlanacak' : 'Kurulmamış'}</span>
                     </span>
                   )}
+
+                  <span
+                    title={compatibility.summary}
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                      compatibility.status === 'compatible'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        : compatibility.status === 'partial'
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                        : 'bg-red-500/10 border-red-500/30 text-red-400'
+                    }`}
+                  >
+                    {compatibility.status === 'compatible' ? (
+                      <ShieldCheck className="w-3 h-3" />
+                    ) : (
+                      <ShieldAlert className="w-3 h-3" />
+                    )}
+                    <span>{compatibility.badgeLabel}</span>
+                  </span>
                 </div>
                 <p className="text-[11px] text-muted font-mono tabular-nums">
                   En güncel sürüm: v{app.latestVersion}
@@ -365,7 +409,21 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => void toggleFollowApp(app)}
+                  title={following ? 'Bildirim takibini kapat' : 'Yayın ve güncelleme bildirimlerini aç'}
+                  className={`px-3.5 py-2 rounded-full border text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap transition-colors ${
+                    following
+                      ? 'accent-subtle accent-border accent-text'
+                      : 'bg-inner border-subtle hover:bg-card-hover text-primary'
+                  }`}
+                >
+                  {following ? <BellRing className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+                  <span>{following ? 'Bildirimler Açık' : 'Takip Et'}</span>
+                </button>
+
                 {task ? (
                   <button
                     type="button"
@@ -413,30 +471,47 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                           <span>Aç</span>
                         </button>
 
-                        <button
-                          type="button"
-                          disabled={!isDownloadable}
-                          onClick={() => {
-                            if (!isDownloadable) return;
-                            if (selectedIsDifferent) {
-                              void handleInstallSelected();
-                            } else {
-                              void reinstallApp(app);
-                            }
-                          }}
-                          className={`px-3.5 py-2 rounded-full bg-inner border border-subtle text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap ${
-                            !isDownloadable
-                              ? 'text-muted cursor-not-allowed opacity-50'
-                              : 'hover:bg-card-hover text-secondary hover:text-primary cursor-pointer'
-                          }`}
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>
-                            {selectedIsDifferent && selectedRelease
-                              ? `v${selectedRelease.version} Kur`
-                              : 'Yeniden Kur'}
-                          </span>
-                        </button>
+                        <div className="inline-flex items-center rounded-full bg-inner border border-subtle p-0.5 gap-1">
+                          {isDownloadable && app.releases.length > 0 && (
+                            <select
+                              aria-label="Kurulacak sürümü seçin"
+                              value={selectedRelease?.tag || ''}
+                              onChange={(e) => setSelectedTag(e.target.value)}
+                              className="pl-3 pr-1.5 py-1.5 rounded-full bg-transparent focus:outline-none text-xs font-mono text-primary cursor-pointer"
+                            >
+                              {app.releases.map((rel) => (
+                                <option key={rel.tag} value={rel.tag} className="bg-modal text-primary">
+                                  {rel.tag}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+
+                          <button
+                            type="button"
+                            disabled={!isDownloadable}
+                            onClick={() => {
+                              if (!isDownloadable) return;
+                              if (selectedIsDifferent) {
+                                void handleInstallSelected();
+                              } else {
+                                void reinstallApp(app);
+                              }
+                            }}
+                            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap ${
+                              !isDownloadable
+                                ? 'text-muted cursor-not-allowed opacity-50'
+                                : 'bg-card hover:bg-card-hover text-secondary hover:text-primary cursor-pointer'
+                            }`}
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>
+                              {selectedIsDifferent && selectedRelease
+                                ? `v${selectedRelease.version} Kur`
+                                : 'Yeniden Kur'}
+                            </span>
+                          </button>
+                        </div>
 
                         <button
                           type="button"
@@ -450,28 +525,55 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                     )}
 
                     {!installed && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!isDownloadable) return;
-                          void handleInstallSelected();
-                        }}
-                        disabled={!isDownloadable || !preferredAsset}
-                        className={`px-5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${
-                          !isDownloadable
-                            ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
-                            : 'btn-primary-koza hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
-                        }`}
-                      >
-                        {!isDownloadable ? <Ban className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
-                        <span>
-                          {!isDownloadable
-                            ? 'İndirilemez'
-                            : selectedRelease
-                            ? `İndir ve Kur (v${selectedRelease.version})`
-                            : 'İndir ve Kur'}
-                        </span>
-                      </button>
+                      isDownloadable && app.releases.length > 0 ? (
+                        <div className="inline-flex flex-wrap items-center rounded-full bg-inner border border-subtle p-1 gap-1">
+                          <select
+                            aria-label="Sürüm seçimi"
+                            value={selectedRelease?.tag || ''}
+                            onChange={(e) => setSelectedTag(e.target.value)}
+                            className="pl-3 pr-2 py-1.5 rounded-full bg-transparent focus:outline-none text-xs font-mono text-primary cursor-pointer"
+                          >
+                            {app.releases.map((rel) => (
+                              <option key={rel.tag} value={rel.tag} className="bg-modal text-primary">
+                                {rel.tag} ({formatTurkishDate(rel.publishedAt)})
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => void handleInstallSelected()}
+                            disabled={!preferredAsset}
+                            className="px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap btn-primary-koza hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>{platformInfo.isDesktop ? 'Kur' : 'İndir ve Kur'}</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!isDownloadable) return;
+                            void handleInstallSelected();
+                          }}
+                          disabled={!isDownloadable || !preferredAsset}
+                          className={`px-5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap ${
+                            !isDownloadable
+                              ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                              : 'btn-primary-koza hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
+                          }`}
+                        >
+                          {!isDownloadable ? <Ban className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+                          <span>
+                            {!isDownloadable
+                              ? 'İndirilemez'
+                              : selectedRelease
+                              ? `İndir ve Kur (v${selectedRelease.version})`
+                              : 'İndir ve Kur'}
+                          </span>
+                        </button>
+                      )
                     )}
                   </>
                 )}
@@ -570,7 +672,7 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                     <select
                       value={selectedRelease?.tag || ''}
                       onChange={(e) => setSelectedTag(e.target.value)}
-                      className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-input border border-input focus:border-accent text-xs font-mono text-primary"
+                      className="w-full sm:w-auto px-3 py-1.5 rounded-xl bg-input border border-input focus:border-accent text-xs font-mono text-primary cursor-pointer"
                     >
                       {app.releases.map((rel) => (
                         <option key={rel.tag} value={rel.tag}>
@@ -645,6 +747,134 @@ export function AppDetailModal({ app, onClose }: AppDetailModalProps) {
                   Bu uygulama için GitHub’da yayınlanmış bir sürüm bulunamadı.
                 </div>
               ) : null}
+
+              {/* System Requirements & Compatibility Card */}
+              <div className="p-4 rounded-2xl bg-card border border-subtle space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                    <Cpu className="w-4 h-4 accent-text shrink-0" />
+                    <span>Sistem Gereksinimleri</span>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      compatibility.status === 'compatible'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        : compatibility.status === 'partial'
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                        : 'bg-red-500/10 border-red-500/30 text-red-400'
+                    }`}
+                  >
+                    {compatibility.status === 'compatible' ? (
+                      <ShieldCheck className="w-3 h-3" />
+                    ) : (
+                      <ShieldAlert className="w-3 h-3" />
+                    )}
+                    <span>{compatibility.badgeLabel}</span>
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-secondary leading-relaxed">{compatibility.summary}</p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {compatibility.checks.map((chk) => (
+                    <div
+                      key={chk.label}
+                      className="p-2.5 rounded-xl bg-inner border border-subtle flex items-start justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <span className="text-[10px] text-muted block">{chk.label}</span>
+                        <span className="text-[11px] font-mono font-semibold text-primary truncate block mt-0.5">
+                          {chk.value}
+                        </span>
+                      </div>
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 mt-1 ${
+                          chk.ok ? 'bg-emerald-400' : 'bg-amber-400'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {(effectiveRequirements.minOsVersion ||
+                  (effectiveRequirements.runtimes && effectiveRequirements.runtimes.length > 0) ||
+                  effectiveRequirements.notes) && (
+                  <div className="text-[11px] text-muted space-y-1 pt-0.5">
+                    {effectiveRequirements.minOsVersion && (
+                      <p>
+                        Minimum OS: <span className="text-secondary">{effectiveRequirements.minOsVersion}</span>
+                      </p>
+                    )}
+                    {effectiveRequirements.runtimes && effectiveRequirements.runtimes.length > 0 && (
+                      <p>
+                        Gerekli Bileşenler:{' '}
+                        <span className="text-secondary">{effectiveRequirements.runtimes.join(', ')}</span>
+                      </p>
+                    )}
+                    {effectiveRequirements.notes && <p>{effectiveRequirements.notes}</p>}
+                  </div>
+                )}
+
+                {reqInferred && (
+                  <p className="text-[10px] text-muted">
+                    * Paket ve sürüm yapısından otomatik çıkarılmıştır.
+                  </p>
+                )}
+              </div>
+
+              {/* Permissions & Capabilities Card */}
+              <div className="p-4 rounded-2xl bg-card border border-subtle space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-primary">
+                    <Lock className="w-4 h-4 accent-text shrink-0" />
+                    <span>İzin ve Özellik Beyanı</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-muted">
+                    {effectivePermissions.length} madde
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {effectivePermissions.map((perm) => {
+                    const level: PermissionLevel = perm.level || 'standard';
+                    return (
+                      <div
+                        key={perm.id}
+                        className="p-2.5 rounded-xl bg-inner/70 border border-subtle flex items-start gap-2.5"
+                      >
+                        <div className="w-6 h-6 rounded-lg bg-card border border-subtle flex items-center justify-center shrink-0 mt-0.5">
+                          {level === 'network' ? (
+                            <Wifi className="w-3.5 h-3.5 accent-text" />
+                          ) : level === 'elevated' ? (
+                            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                          ) : level === 'system' ? (
+                            <HardDrive className="w-3.5 h-3.5 text-sky-400" />
+                          ) : (
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-semibold text-primary block">
+                            {perm.label}
+                          </span>
+                          {perm.description && (
+                            <span className="text-[11px] text-muted leading-snug block mt-0.5">
+                              {perm.description}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {permInferred && (
+                  <p className="text-[10px] text-muted">
+                    * Kurulum paketi ve uygulama kategorisine göre belirlenmiştir.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

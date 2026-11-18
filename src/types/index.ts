@@ -40,6 +40,7 @@ export interface CatalogAppEntry {
   name?: string;
   developer?: string;
   category?: string;
+  catalog?: string;
   summary?: string;
   description?: string;
   iconUrl?: string;
@@ -49,9 +50,12 @@ export interface CatalogAppEntry {
   featured?: boolean;
   new?: boolean;
   downloadable?: boolean;
+  comingSoon?: boolean;
   announcedAt?: string;
   releaseDate?: string;
   upcomingUpdateDate?: string;
+  requirements?: AppRequirements;
+  permissions?: Array<string | AppPermissionItem>;
   tags?: string[];
   // Optional direct release (for apps not hosted on GitHub Releases)
   version?: string;
@@ -61,6 +65,25 @@ export interface CatalogAppEntry {
   releaseNotes?: string;
   publishedAt?: string;
   platform?: PlatformKind;
+}
+
+export interface AppRequirements {
+  os?: PlatformKind[];
+  minOsVersion?: string;
+  arch?: string[];
+  minRamGb?: number;
+  minDiskMb?: number;
+  runtimes?: string[];
+  notes?: string;
+}
+
+export type PermissionLevel = 'standard' | 'network' | 'system' | 'elevated';
+
+export interface AppPermissionItem {
+  id: string;
+  label: string;
+  description?: string;
+  level?: PermissionLevel;
 }
 
 export interface SignalEntry {
@@ -85,11 +108,28 @@ export interface SignalsManifest {
   signals: SignalEntry[];
 }
 
+export interface CatalogDefinition {
+  id: string;
+  label: string;
+  description?: string;
+  order?: number;
+  count?: number;
+}
+
 export interface RemoteCatalogManifest {
   schemaVersion?: number;
   storeName?: string;
   publisher?: string;
   updatedAt?: string;
+  catalogs?: Array<
+    | string
+    | {
+        id: string;
+        label?: string;
+        description?: string;
+        order?: number;
+      }
+  >;
   apps: CatalogAppEntry[];
   signals?: SignalEntry[];
 }
@@ -100,6 +140,8 @@ export interface StoreApp {
   developer: string;
   developerAvatarUrl?: string;
   category: string;
+  catalogId: string;
+  catalogLabel: string;
   summary: string;
   description: string;
   iconUrl?: string;
@@ -111,9 +153,14 @@ export interface StoreApp {
   featured?: boolean;
   new?: boolean;
   downloadable: boolean;
+  comingSoon?: boolean;
   announcedAt?: string;
   releaseDate?: string;
   upcomingUpdateDate?: string;
+  requirements?: AppRequirements;
+  permissions?: AppPermissionItem[];
+  requirementsInferred?: boolean;
+  permissionsInferred?: boolean;
   tags: string[];
   latestVersion: string;
   latestRelease: StoreRelease | null;
@@ -122,6 +169,41 @@ export interface StoreApp {
   sourceLabel: string;
   syncError?: string;
   syncedAt: string;
+}
+
+export type NotificationKind = 'release' | 'update' | 'install' | 'follow' | 'warning';
+
+export interface StoreNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  message: string;
+  appId?: string;
+  createdAt: string;
+  read: boolean;
+}
+
+export type ActivityAction =
+  | 'install'
+  | 'update'
+  | 'reinstall'
+  | 'uninstall'
+  | 'follow'
+  | 'unfollow'
+  | 'error';
+
+export interface ActivityLogEntry {
+  id: string;
+  appId: string;
+  appName: string;
+  action: ActivityAction;
+  version?: string;
+  previousVersion?: string;
+  fileName?: string;
+  fileSize?: number;
+  status: 'success' | 'failed';
+  message: string;
+  timestamp: string;
 }
 
 export type CatalogSourceType = 'catalog-url' | 'github-repo' | 'github-user';

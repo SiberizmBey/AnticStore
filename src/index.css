@@ -398,3 +398,32 @@ html[data-theme="light"] .card-update-spotlight-cursor {
   filter: grayscale(100%) saturate(0%) contrast(0.95) !important;
   opacity: 0.72;
 }
+
+/* Coming Soon / Blueprint Card Style (Distinct from active/spotlight cards) */
+.card-coming-soon {
+  border-style: dashed !important;
+  border-color: rgba(245, 158, 11, 0.36);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(245, 158, 11, 0.028) 0px,
+    rgba(245, 158, 11, 0.028) 8px,
+    transparent 8px,
+    transparent 18px
+  );
+}
+
+.card-coming-soon:hover {
+  border-color: rgba(245, 158, 11, 0.58);
+}
+
+html[data-theme="light"] .card-coming-soon {
+  border-color: rgba(217, 119, 6, 0.42);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(217, 119, 6, 0.045) 0px,
+    rgba(217, 119, 6, 0.045) 8px,
+    transparent 8px,
+    transparent 18px
+  );
+}
+

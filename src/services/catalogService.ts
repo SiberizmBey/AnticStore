@@ -1,5 +1,6 @@
 import type {
   CatalogAppEntry,
+  CatalogDefinition,
   CatalogSource,
   RemoteCatalogManifest,
   SignalEntry,
@@ -11,6 +12,7 @@ import type {
 import bundledCatalog from '../../catalog.json';
 import bundledSignals from '../../signals.json';
 import { cleanVersion, detectAssetMeta } from '../utils/semver';
+import { normalizePermissionsList } from '../utils/compatibility';
 
 export const OFFICIAL_STORE_REPO = 'SiberizmBey/AnticStore';
 
@@ -153,10 +155,79 @@ function inferCategory(name: string, summary: string, topics: string[]): string 
   return 'Araçlar';
 }
 
+function normalizeCatalogId(raw?: string): string {
+  const cleaned = (raw || '').trim().toLowerCase();
+  if (!cleaned || cleaned === 'general' || cleaned === 'genel' || cleaned === 'default' || cleaned === 'main') {
+    return 'general';
+  }
+  return cleaned;
+}
+
+function formatCatalogLabel(raw: string | undefined, id: string): string {
+  if (id === 'general') return 'Genel';
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return id.charAt(0).toUpperCase() + id.slice(1);
+  if (trimmed === trimmed.toLowerCase()) {
+    return trimmed
+      .split(/[-_\s]+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+  return trimmed;
+}
+
+function parseManifestCatalogDefs(
+  rawCatalogs?: RemoteCatalogManifest['catalogs']
+): Map<string, CatalogDefinition> {
+  const map = new Map<string, CatalogDefinition>();
+  if (!Array.isArray(rawCatalogs)) return map;
+
+  rawCatalogs.forEach((item, idx) => {
+    if (typeof item === 'string') {
+      const id = normalizeCatalogId(item);
+      map.set(id, {
+        id,
+        label: formatCatalogLabel(item, id),
+        order: id === 'general' ? -1 : idx,
+      });
+    } else if (item && typeof item === 'object' && typeof item.id === 'string') {
+      const id = normalizeCatalogId(item.id);
+      map.set(id, {
+        id,
+        label:
+          typeof item.label === 'string' && item.label.trim()
+            ? item.label.trim()
+            : formatCatalogLabel(item.id, id),
+        description:
+          typeof item.description === 'string' && item.description.trim()
+            ? item.description.trim()
+            : undefined,
+        order: typeof item.order === 'number' ? item.order : id === 'general' ? -1 : idx,
+      });
+    }
+  });
+
+  return map;
+}
+
+function resolveAppCatalog(
+  rawCatalog: string | undefined,
+  defsMap: Map<string, CatalogDefinition>
+): { catalogId: string; catalogLabel: string } {
+  const catalogId = normalizeCatalogId(rawCatalog);
+  const def = defsMap.get(catalogId);
+  return {
+    catalogId,
+    catalogLabel: def?.label || formatCatalogLabel(rawCatalog, catalogId),
+  };
+}
+
 function mapBundleToStoreApp(
   bundle: GitHubRepoBundle,
   sourceLabel: string,
-  override?: Partial<CatalogAppEntry>
+  override?: Partial<CatalogAppEntry>,
+  catalogDefsMap: Map<string, CatalogDefinition> = new Map()
 ): StoreApp {
   const repoInfo = bundle.repo || {};
   const pkg = bundle.packageJson || {};
@@ -235,6 +306,11 @@ function mapBundleToStoreApp(
     manifest.category ||
     inferCategory(appName, summary, repoInfo.topics || []);
 
+  const { catalogId, catalogLabel } = resolveAppCatalog(
+    override?.catalog || manifest.catalog,
+    catalogDefsMap
+  );
+
   const iconUrl =
     override?.iconUrl ||
     manifest.iconUrl ||
@@ -245,6 +321,7 @@ function mapBundleToStoreApp(
   const overrideDownloadable = parseDownloadableFlag(override?.downloadable);
   const manifestDownloadable = parseDownloadableFlag(manifest.downloadable);
   const downloadable = (overrideDownloadable ?? manifestDownloadable) !== false;
+  const comingSoon = Boolean(override?.comingSoon ?? manifest.comingSoon ?? !downloadable);
   const announcedAt = override?.announcedAt || manifest.announcedAt;
   const releaseDate =
     override?.releaseDate ||
@@ -253,6 +330,8 @@ function mapBundleToStoreApp(
     override?.publishedAt ||
     manifest.publishedAt;
   const upcomingUpdateDate = override?.upcomingUpdateDate || manifest.upcomingUpdateDate;
+  const requirements = override?.requirements || manifest.requirements;
+  const permissions = normalizePermissionsList(override?.permissions || manifest.permissions);
 
   return {
     id: appId,
@@ -260,6 +339,8 @@ function mapBundleToStoreApp(
     developer,
     developerAvatarUrl: repoInfo.owner?.avatar_url,
     category,
+    catalogId,
+    catalogLabel,
     summary,
     description,
     iconUrl: iconUrl || undefined,
@@ -273,9 +354,14 @@ function mapBundleToStoreApp(
     featured: Boolean(override?.featured || manifest.featured),
     new: Boolean(override?.new ?? manifest.new),
     downloadable,
+    comingSoon,
     announcedAt: announcedAt || undefined,
     releaseDate: releaseDate || undefined,
     upcomingUpdateDate: upcomingUpdateDate || undefined,
+    requirements,
+    permissions: permissions.length > 0 ? permissions : undefined,
+    requirementsInferred: !requirements,
+    permissionsInferred: permissions.length === 0,
     tags:
       override?.tags ||
       manifest.tags ||
@@ -289,7 +375,11 @@ function mapBundleToStoreApp(
   };
 }
 
-function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): StoreApp {
+function mapDirectEntryToStoreApp(
+  entry: CatalogAppEntry,
+  sourceLabel: string,
+  catalogDefsMap: Map<string, CatalogDefinition> = new Map()
+): StoreApp {
   const version = cleanVersion(entry.version || '1.0.0');
   const fileName = entry.fileName || `${entry.name || entry.id}-${version}.exe`;
   const meta = detectAssetMeta(fileName);
@@ -313,11 +403,17 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
       }
     : null;
 
+  const directDownloadable = parseDownloadableFlag(entry.downloadable) !== false;
+  const directPermissions = normalizePermissionsList(entry.permissions);
+  const { catalogId, catalogLabel } = resolveAppCatalog(entry.catalog, catalogDefsMap);
+
   return {
     id: entry.id,
     name: entry.name || entry.id,
     developer: entry.developer || 'Antic Valley',
     category: entry.category || 'Araçlar',
+    catalogId,
+    catalogLabel,
     summary: entry.summary || 'Koru uygulaması',
     description: entry.description || entry.summary || 'Koru kataloğundan sunulan uygulama.',
     iconUrl: entry.iconUrl,
@@ -327,10 +423,15 @@ function mapDirectEntryToStoreApp(entry: CatalogAppEntry, sourceLabel: string): 
     websiteUrl: entry.websiteUrl || entry.downloadUrl || 'https://anticvalley.com.tr',
     featured: Boolean(entry.featured),
     new: Boolean(entry.new),
-    downloadable: parseDownloadableFlag(entry.downloadable) !== false,
+    downloadable: directDownloadable,
+    comingSoon: Boolean(entry.comingSoon ?? !directDownloadable),
     announcedAt: entry.announcedAt || undefined,
     releaseDate: entry.releaseDate || entry.publishedAt || undefined,
     upcomingUpdateDate: entry.upcomingUpdateDate || undefined,
+    requirements: entry.requirements,
+    permissions: directPermissions.length > 0 ? directPermissions : undefined,
+    requirementsInferred: !entry.requirements,
+    permissionsInferred: directPermissions.length === 0,
     tags: entry.tags || ['Doğrudan Paket'],
     latestVersion: version,
     latestRelease: release,
@@ -366,6 +467,7 @@ async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
 export async function syncOfficialCatalog(forceRefresh = false): Promise<{
   apps: StoreApp[];
   source: CatalogSource;
+  catalogDefs: CatalogDefinition[];
 }> {
   const manifest = window.anticStoreDesktop
     ? await fetchOfficialManifestDesktop()
@@ -378,6 +480,7 @@ export async function syncOfficialCatalog(forceRefresh = false): Promise<{
   }
 
   const sourceLabel = manifest.storeName || `GitHub (${OFFICIAL_STORE_REPO})`;
+  const catalogDefsMap = parseManifestCatalogDefs(manifest.catalogs);
 
   const apps = await Promise.all(
     manifest.apps.map(async (entry) => {
@@ -386,13 +489,13 @@ export async function syncOfficialCatalog(forceRefresh = false): Promise<{
           const slug = normalizeGitHubRepoInput(entry.githubRepo);
           if (slug) {
             const bundle = await fetchGitHubBundle(slug);
-            return mapBundleToStoreApp(bundle, sourceLabel, entry);
+            return mapBundleToStoreApp(bundle, sourceLabel, entry, catalogDefsMap);
           }
         }
-        return mapDirectEntryToStoreApp(entry, sourceLabel);
+        return mapDirectEntryToStoreApp(entry, sourceLabel, catalogDefsMap);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Senkronizasyon hatası';
-        const fallback = mapDirectEntryToStoreApp(entry, sourceLabel);
+        const fallback = mapDirectEntryToStoreApp(entry, sourceLabel, catalogDefsMap);
         return {
           ...fallback,
           syncError: msg,
@@ -403,6 +506,7 @@ export async function syncOfficialCatalog(forceRefresh = false): Promise<{
 
   return {
     apps,
+    catalogDefs: Array.from(catalogDefsMap.values()),
     source: {
       id: 'official-anticstore',
       type: 'catalog-url',

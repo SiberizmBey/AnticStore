@@ -8,6 +8,7 @@ import { InstalledView } from './views/InstalledView';
 import { SettingsView } from './views/SettingsView';
 import { AppDetailModal } from './components/AppDetailModal';
 import { SignalsPopover } from './components/SignalsPopover';
+import { ToastContainer } from './components/ToastContainer';
 import { useStore } from './context/StoreContext';
 import type { StoreApp } from './types';
 
@@ -32,6 +33,7 @@ function KoruShell() {
       <Navbar
         currentTab={currentTab}
         onSelectTab={setCurrentTab}
+        onSelectAppById={handleSelectAppById}
       />
 
       <main
@@ -63,6 +65,7 @@ function KoruShell() {
         </AnimatePresence>
       </main>
 
+      <ToastContainer onSelectAppById={handleSelectAppById} />
       <SignalsPopover onSelectAppById={handleSelectAppById} />
 
       <AnimatePresence>

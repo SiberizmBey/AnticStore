@@ -1,13 +1,18 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type {
+  ActivityAction,
+  ActivityLogEntry,
   AppTaskProgress,
+  CatalogDefinition,
   CatalogSource,
   InstallMode,
   InstalledAppRecord,
+  NotificationKind,
   PlatformInfo,
   SignalsManifest,
   StoreApp,
   StoreAsset,
+  StoreNotification,
   StoreRelease,
 } from '../types';
 import { OFFICIAL_STORE_REPO, syncOfficialCatalog, syncOfficialSignals } from '../services/catalogService';
@@ -17,33 +22,52 @@ import { isUpdateAvailable, pickPreferredAsset } from '../utils/semver';
 const WEB_INSTALLED_STORAGE_KEY = 'anticstore_web_installed_v1';
 const INSTALL_MODE_STORAGE_KEY = 'anticstore_install_mode_v1';
 const SEEN_SIGNALS_STORAGE_KEY = 'koru_seen_signals_v1';
+const NOTIFICATIONS_STORAGE_KEY = 'koru_notifications_v1';
+const FOLLOWED_APPS_STORAGE_KEY = 'koru_followed_apps_v1';
+const FOLLOWED_SNAPSHOT_STORAGE_KEY = 'koru_followed_snapshot_v1';
+const ACTIVITY_HISTORY_STORAGE_KEY = 'koru_activity_history_v1';
+const NOTIFIED_EVENTS_STORAGE_KEY = 'koru_notified_events_v1';
 
-function loadSeenSignalIds(): string[] {
+interface FollowedAppSnapshot {
+  downloadable: boolean;
+  version: string;
+}
+
+function loadJsonStorage<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(SEEN_SIGNALS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
   } catch {
-    return [];
+    return fallback;
   }
 }
 
-function loadWebInstalled(): Record<string, InstalledAppRecord> {
+function saveJsonStorage(key: string, value: unknown): void {
   try {
-    const raw = localStorage.getItem(WEB_INSTALLED_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, InstalledAppRecord>;
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    return {};
+    // Ignore storage quota errors
   }
+}
+
+function loadSeenSignalIds(): string[] {
+  const parsed = loadJsonStorage<unknown>(SEEN_SIGNALS_STORAGE_KEY, []);
+  return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+}
+
+function loadWebInstalled(): Record<string, InstalledAppRecord> {
+  const parsed = loadJsonStorage<Record<string, InstalledAppRecord> | null>(WEB_INSTALLED_STORAGE_KEY, null);
+  return parsed && typeof parsed === 'object' ? parsed : {};
 }
 
 interface StoreContextType {
   platformInfo: PlatformInfo;
   officialSource: CatalogSource;
   apps: StoreApp[];
+  catalogs: CatalogDefinition[];
+  activeCatalog: string;
+  setActiveCatalog: (catalogId: string) => void;
   installedMap: Record<string, InstalledAppRecord>;
   tasks: Record<string, AppTaskProgress>;
   appErrors: Record<string, string>;
@@ -60,10 +84,22 @@ interface StoreContextType {
   isSyncingSignals: boolean;
   signalsError: string | null;
   unreadSignalsCount: number;
+  notifications: StoreNotification[];
+  unreadNotificationsCount: number;
+  activeToasts: StoreNotification[];
+  followedAppIds: string[];
+  activityHistory: ActivityLogEntry[];
   setInstallMode: (mode: InstallMode) => void;
   syncCatalog: () => Promise<void>;
   syncSignals: (forceRefresh?: boolean) => Promise<void>;
   markSignalsAsRead: () => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  clearNotifications: () => void;
+  dismissToast: (id: string) => void;
+  isFollowingApp: (appId: string) => boolean;
+  toggleFollowApp: (app: StoreApp) => Promise<boolean>;
+  clearActivityHistory: () => void;
   saveGitHubToken: (token: string) => Promise<void>;
   clearGitHubToken: () => Promise<void>;
   installApp: (
@@ -98,6 +134,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     builtIn: true,
   });
   const [apps, setApps] = useState<StoreApp[]>([]);
+  const [manifestCatalogDefs, setManifestCatalogDefs] = useState<CatalogDefinition[]>([]);
+  const [activeCatalog, setActiveCatalog] = useState<string>('all');
   const [installedMap, setInstalledMap] = useState<Record<string, InstalledAppRecord>>(() =>
     window.anticStoreDesktop ? {} : loadWebInstalled()
   );
@@ -121,6 +159,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [isSyncingSignals, setIsSyncingSignals] = useState<boolean>(true);
   const [signalsError, setSignalsError] = useState<string | null>(null);
   const [seenSignalIds, setSeenSignalIds] = useState<string[]>(() => loadSeenSignalIds());
+  const [notifications, setNotifications] = useState<StoreNotification[]>(() => {
+    const saved = loadJsonStorage<StoreNotification[]>(NOTIFICATIONS_STORAGE_KEY, []);
+    return Array.isArray(saved) ? saved.slice(0, 60) : [];
+  });
+  const [activeToasts, setActiveToasts] = useState<StoreNotification[]>([]);
+  const [followedAppIds, setFollowedAppIds] = useState<string[]>(() => {
+    const saved = loadJsonStorage<unknown>(FOLLOWED_APPS_STORAGE_KEY, []);
+    return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [];
+  });
+  const [activityHistory, setActivityHistory] = useState<ActivityLogEntry[]>(() => {
+    const saved = loadJsonStorage<ActivityLogEntry[]>(ACTIVITY_HISTORY_STORAGE_KEY, []);
+    return Array.isArray(saved) ? saved.slice(0, 100) : [];
+  });
   const [installMode, setInstallModeState] = useState<InstallMode>(() => {
     const saved = localStorage.getItem(INSTALL_MODE_STORAGE_KEY);
     return saved === 'silent' ? 'silent' : 'interactive';
@@ -130,6 +181,200 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const catalogSyncInProgress = useRef(false);
   const catalogSyncRequested = useRef(false);
   const signalsSyncInProgress = useRef(false);
+  const followedSnapshotsRef = useRef<Record<string, FollowedAppSnapshot>>(
+    loadJsonStorage<Record<string, FollowedAppSnapshot>>(FOLLOWED_SNAPSHOT_STORAGE_KEY, {})
+  );
+  const notifiedEventsRef = useRef<Record<string, boolean>>(
+    loadJsonStorage<Record<string, boolean>>(NOTIFIED_EVENTS_STORAGE_KEY, {})
+  );
+  const installedMapRef = useRef(installedMap);
+  installedMapRef.current = installedMap;
+  const followedAppIdsRef = useRef(followedAppIds);
+  followedAppIdsRef.current = followedAppIds;
+
+  const dismissToast = useCallback((id: string) => {
+    setActiveToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const pushNotification = useCallback(
+    (payload: {
+      kind: NotificationKind;
+      title: string;
+      message: string;
+      appId?: string;
+      showToast?: boolean;
+      sendBrowserNotification?: boolean;
+    }) => {
+      const entry: StoreNotification = {
+        id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        kind: payload.kind,
+        title: payload.title,
+        message: payload.message,
+        appId: payload.appId,
+        createdAt: new Date().toISOString(),
+        read: false,
+      };
+
+      setNotifications((prev) => {
+        const next = [entry, ...prev].slice(0, 60);
+        saveJsonStorage(NOTIFICATIONS_STORAGE_KEY, next);
+        return next;
+      });
+
+      if (payload.showToast !== false) {
+        setActiveToasts((prev) => [entry, ...prev].slice(0, 3));
+        window.setTimeout(() => {
+          setActiveToasts((prev) => prev.filter((t) => t.id !== entry.id));
+        }, 5200);
+      }
+
+      if (
+        payload.sendBrowserNotification &&
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        window.Notification.permission === 'granted'
+      ) {
+        try {
+          new window.Notification(payload.title, {
+            body: payload.message,
+          });
+        } catch {
+          // Ignore browser notification errors in restricted contexts
+        }
+      }
+    },
+    []
+  );
+
+  const recordActivity = useCallback(
+    (entry: Omit<ActivityLogEntry, 'id' | 'timestamp'>) => {
+      const full: ActivityLogEntry = {
+        ...entry,
+        id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: new Date().toISOString(),
+      };
+      setActivityHistory((prev) => {
+        const next = [full, ...prev].slice(0, 100);
+        saveJsonStorage(ACTIVITY_HISTORY_STORAGE_KEY, next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const clearActivityHistory = useCallback(() => {
+    setActivityHistory([]);
+    saveJsonStorage(ACTIVITY_HISTORY_STORAGE_KEY, []);
+  }, []);
+
+  const markNotificationRead = useCallback((id: string) => {
+    setNotifications((prev) => {
+      const next = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+      saveJsonStorage(NOTIFICATIONS_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications((prev) => {
+      const next = prev.map((n) => (n.read ? n : { ...n, read: true }));
+      saveJsonStorage(NOTIFICATIONS_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+    saveJsonStorage(NOTIFICATIONS_STORAGE_KEY, []);
+  }, []);
+
+  const unreadNotificationsCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  );
+
+  const isFollowingApp = useCallback(
+    (appId: string) => followedAppIds.includes(appId),
+    [followedAppIds]
+  );
+
+  const toggleFollowApp = useCallback(
+    async (app: StoreApp): Promise<boolean> => {
+      const currentlyFollowing = followedAppIdsRef.current.includes(app.id);
+      if (currentlyFollowing) {
+        const next = followedAppIdsRef.current.filter((id) => id !== app.id);
+        setFollowedAppIds(next);
+        saveJsonStorage(FOLLOWED_APPS_STORAGE_KEY, next);
+        const snapCopy = { ...followedSnapshotsRef.current };
+        delete snapCopy[app.id];
+        followedSnapshotsRef.current = snapCopy;
+        saveJsonStorage(FOLLOWED_SNAPSHOT_STORAGE_KEY, snapCopy);
+        recordActivity({
+          appId: app.id,
+          appName: app.name,
+          action: 'unfollow',
+          status: 'success',
+          message: `${app.name} takipten çıkarıldı.`,
+        });
+        pushNotification({
+          kind: 'follow',
+          title: 'Takip Kapatıldı',
+          message: `${app.name} için bildirim takibi kapatıldı.`,
+          appId: app.id,
+        });
+        return false;
+      }
+
+      if (
+        typeof window !== 'undefined' &&
+        'Notification' in window &&
+        window.Notification.permission === 'default'
+      ) {
+        try {
+          await window.Notification.requestPermission();
+        } catch {
+          // Ignore permission denial or restricted iframe context
+        }
+      }
+
+      const next = Array.from(new Set([...followedAppIdsRef.current, app.id]));
+      setFollowedAppIds(next);
+      saveJsonStorage(FOLLOWED_APPS_STORAGE_KEY, next);
+
+      const nextSnapshots = {
+        ...followedSnapshotsRef.current,
+        [app.id]: {
+          downloadable: app.downloadable !== false,
+          version: app.latestVersion,
+        },
+      };
+      followedSnapshotsRef.current = nextSnapshots;
+      saveJsonStorage(FOLLOWED_SNAPSHOT_STORAGE_KEY, nextSnapshots);
+
+      recordActivity({
+        appId: app.id,
+        appName: app.name,
+        action: 'follow',
+        version: app.latestVersion,
+        status: 'success',
+        message:
+          app.downloadable === false
+            ? `${app.name} yayınlandığında bildirim almak üzere takip edildi.`
+            : `${app.name} yeni sürüm bildirimleri için takip edildi.`,
+      });
+      pushNotification({
+        kind: 'follow',
+        title: 'Bildirimler Açıldı',
+        message:
+          app.downloadable === false
+            ? `${app.name} indirmeye açıldığında anında haber vereceğiz.`
+            : `${app.name} için yeni sürüm bildirimleri aktif edildi.`,
+        appId: app.id,
+      });
+      return true;
+    },
+    [pushNotification, recordActivity]
+  );
 
   const setInstallMode = (mode: InstallMode) => {
     setInstallModeState(mode);
@@ -233,12 +478,83 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setSyncError(null);
 
         try {
-          const { apps: syncedApps, source } = await syncOfficialCatalog(true);
+          const { apps: syncedApps, source, catalogDefs } = await syncOfficialCatalog(true);
           setApps(syncedApps);
+          setManifestCatalogDefs(catalogDefs);
           setOfficialSource(source);
           setLastSyncedAt(new Date().toISOString());
           void preloadMediaUrls(syncedApps.map((a) => a.iconUrl));
           await refreshInstalled(syncedApps);
+
+          // Check updates & followed apps release/availability notifications
+          const currentInstalled = installedMapRef.current;
+          const followedIds = followedAppIdsRef.current;
+          const prevSnaps = followedSnapshotsRef.current;
+          const nextSnaps = { ...prevSnaps };
+          let snapsChanged = false;
+          let eventsChanged = false;
+
+          for (const app of syncedApps) {
+            const inst = currentInstalled[app.id];
+            if (inst && isUpdateAvailable(inst.version, app.latestVersion) && app.downloadable !== false) {
+              const eventKey = `update:${app.id}:${app.latestVersion}`;
+              if (!notifiedEventsRef.current[eventKey]) {
+                notifiedEventsRef.current[eventKey] = true;
+                eventsChanged = true;
+                pushNotification({
+                  kind: 'update',
+                  title: `${app.name} Güncellemesi Hazır`,
+                  message: `v${inst.version} → v${app.latestVersion} sürümü indirilebilir durumda.`,
+                  appId: app.id,
+                  showToast: false,
+                  sendBrowserNotification: true,
+                });
+              }
+            }
+
+            if (followedIds.includes(app.id)) {
+              const prevSnap = prevSnaps[app.id];
+              const nowDownloadable = app.downloadable !== false;
+              if (prevSnap) {
+                if (!prevSnap.downloadable && nowDownloadable) {
+                  pushNotification({
+                    kind: 'release',
+                    title: `${app.name} Yayında!`,
+                    message: `Takip ettiğiniz ${app.name} (v${app.latestVersion}) artık indirilebilir.`,
+                    appId: app.id,
+                    sendBrowserNotification: true,
+                  });
+                } else if (prevSnap.version !== app.latestVersion && nowDownloadable) {
+                  pushNotification({
+                    kind: 'release',
+                    title: `${app.name} Yeni Sürüm`,
+                    message: `Takip ettiğiniz uygulama v${app.latestVersion} sürümüne güncellendi.`,
+                    appId: app.id,
+                    sendBrowserNotification: true,
+                  });
+                }
+              }
+              if (
+                !prevSnap ||
+                prevSnap.downloadable !== nowDownloadable ||
+                prevSnap.version !== app.latestVersion
+              ) {
+                nextSnaps[app.id] = {
+                  downloadable: nowDownloadable,
+                  version: app.latestVersion,
+                };
+                snapsChanged = true;
+              }
+            }
+          }
+
+          if (snapsChanged) {
+            followedSnapshotsRef.current = nextSnaps;
+            saveJsonStorage(FOLLOWED_SNAPSHOT_STORAGE_KEY, nextSnaps);
+          }
+          if (eventsChanged) {
+            saveJsonStorage(NOTIFIED_EVENTS_STORAGE_KEY, notifiedEventsRef.current);
+          }
         } catch (err) {
           setSyncError(err instanceof Error ? err.message : 'Katalog senkronizasyonu başarısız.');
         }
@@ -247,7 +563,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       catalogSyncInProgress.current = false;
       setIsSyncing(false);
     }
-  }, [refreshInstalled, syncSignals]);
+  }, [pushNotification, refreshInstalled, syncSignals]);
 
   useEffect(() => {
     void syncCatalog();
@@ -323,6 +639,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     const mode = options?.mode || 'install';
+    const previousVersion = installedMapRef.current[app.id]?.version;
+    const actionKind: ActivityAction =
+      mode === 'update' ? 'update' : mode === 'reinstall' ? 'reinstall' : 'install';
 
     try {
       if (window.anticStoreDesktop) {
@@ -434,16 +753,62 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           },
         }));
       }
+
+      const actionSuccessTitle =
+        mode === 'update'
+          ? `${app.name} Güncellendi`
+          : mode === 'reinstall'
+          ? `${app.name} Yeniden Kuruldu`
+          : `${app.name} Kuruldu`;
+      const actionSuccessMessage =
+        mode === 'update' && previousVersion
+          ? `v${previousVersion} → v${release.version} (${asset.name})`
+          : `v${release.version} (${asset.name})`;
+
+      recordActivity({
+        appId: app.id,
+        appName: app.name,
+        action: actionKind,
+        version: release.version,
+        previousVersion,
+        fileName: asset.name,
+        fileSize: asset.size,
+        status: 'success',
+        message: actionSuccessMessage,
+      });
+      pushNotification({
+        kind: 'install',
+        title: actionSuccessTitle,
+        message: actionSuccessMessage,
+        appId: app.id,
+        sendBrowserNotification: true,
+      });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         // Cancelled by user
       } else if (err instanceof Error && err.message.toLowerCase().includes('abort')) {
         // Cancelled by user
       } else {
+        const msg = err instanceof Error ? err.message : 'Kurulum sırasında hata oluştu.';
         setAppErrors((prev) => ({
           ...prev,
-          [app.id]: err instanceof Error ? err.message : 'Kurulum sırasında hata oluştu.',
+          [app.id]: msg,
         }));
+        recordActivity({
+          appId: app.id,
+          appName: app.name,
+          action: 'error',
+          version: release.version,
+          fileName: asset.name,
+          status: 'failed',
+          message: msg,
+        });
+        pushNotification({
+          kind: 'warning',
+          title: `${app.name} İşlem Hatası`,
+          message: msg,
+          appId: app.id,
+        });
       }
     } finally {
       webAbortControllers.current.delete(app.id);
@@ -497,11 +862,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         delete copy[app.id];
         return copy;
       });
+
+      recordActivity({
+        appId: app.id,
+        appName: app.name,
+        action: 'uninstall',
+        version: existing.version,
+        status: 'success',
+        message: `v${existing.version} sürümü kaldırıldı.`,
+      });
+      pushNotification({
+        kind: 'install',
+        title: `${app.name} Kaldırıldı`,
+        message: `v${existing.version} sürümü başarıyla kaldırıldı.`,
+        appId: app.id,
+      });
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Kaldırma işlemi başarısız oldu.';
       setAppErrors((prev) => ({
         ...prev,
-        [app.id]: err instanceof Error ? err.message : 'Kaldırma işlemi başarısız oldu.',
+        [app.id]: msg,
       }));
+      recordActivity({
+        appId: app.id,
+        appName: app.name,
+        action: 'error',
+        version: existing.version,
+        status: 'failed',
+        message: msg,
+      });
     } finally {
       setTasks((prev) => {
         const copy = { ...prev };
@@ -558,6 +947,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [apps, installedMap]
   );
 
+  const catalogs = useMemo<CatalogDefinition[]>(() => {
+    const defMap = new Map<string, CatalogDefinition>();
+    for (const def of manifestCatalogDefs) {
+      defMap.set(def.id, { ...def, count: 0 });
+    }
+
+    for (const app of apps) {
+      const existing = defMap.get(app.catalogId);
+      if (existing) {
+        existing.count = (existing.count || 0) + 1;
+      } else {
+        defMap.set(app.catalogId, {
+          id: app.catalogId,
+          label: app.catalogLabel,
+          order: app.catalogId === 'general' ? -1 : defMap.size,
+          count: 1,
+        });
+      }
+    }
+
+    return Array.from(defMap.values())
+      .filter((c) => (c.count || 0) > 0)
+      .sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.label.localeCompare(b.label, 'tr'));
+  }, [apps, manifestCatalogDefs]);
+
+  useEffect(() => {
+    if (activeCatalog !== 'all' && catalogs.length > 0 && !catalogs.some((c) => c.id === activeCatalog)) {
+      setActiveCatalog('all');
+    }
+  }, [activeCatalog, catalogs]);
+
   const updateAllApps = async () => {
     for (const app of updatableApps) {
       if (app.downloadable === false) continue;
@@ -571,6 +991,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         platformInfo,
         officialSource,
         apps,
+        catalogs,
+        activeCatalog,
+        setActiveCatalog,
         installedMap,
         tasks,
         appErrors,
@@ -587,10 +1010,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         isSyncingSignals,
         signalsError,
         unreadSignalsCount,
+        notifications,
+        unreadNotificationsCount,
+        activeToasts,
+        followedAppIds,
+        activityHistory,
         setInstallMode,
         syncCatalog,
         syncSignals,
         markSignalsAsRead,
+        markNotificationRead,
+        markAllNotificationsRead,
+        clearNotifications,
+        dismissToast,
+        isFollowingApp,
+        toggleFollowApp,
+        clearActivityHistory,
         saveGitHubToken,
         clearGitHubToken,
         installApp,

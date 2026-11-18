@@ -1,31 +1,86 @@
 import React from "react";
-import { Store, PackageCheck, Settings, RefreshCw } from "lucide-react";
+import {
+    Store,
+    PackageCheck,
+    Settings,
+    RefreshCw,
+    Briefcase,
+    FolderKanban,
+    Code2,
+    Gamepad2,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useStore } from "../context/StoreContext";
 import { WindowControls } from "./WindowControls";
+import { NotificationPopover } from "./NotificationPopover";
 
 export type NavTab = "store" | "installed" | "settings";
 
 interface NavbarProps {
     currentTab: NavTab;
     onSelectTab: (tab: NavTab) => void;
+    onSelectAppById?: (appId: string) => void;
 }
 
-export function Navbar({ currentTab, onSelectTab }: NavbarProps) {
-    const { isSyncing, syncCatalog, installedApps, updatableApps } = useStore();
+function getCatalogIcon(catalogId: string, label: string) {
+    const key = `${catalogId} ${label}`.toLowerCase();
+    if (/(job|iş|erp|crm|kurumsal|enterprise|ofis)/.test(key)) {
+        return <Briefcase className="w-4 h-4" />;
+    }
+    if (/(dev|code|geliştirici|sdk|cli|api)/.test(key)) {
+        return <Code2 className="w-4 h-4" />;
+    }
+    if (/(game|oyun|arcade)/.test(key)) {
+        return <Gamepad2 className="w-4 h-4" />;
+    }
+    return <FolderKanban className="w-4 h-4" />;
+}
+
+export function Navbar({ currentTab, onSelectTab, onSelectAppById }: NavbarProps) {
+    const {
+        isSyncing,
+        syncCatalog,
+        installedApps,
+        updatableApps,
+        catalogs,
+        activeCatalog,
+        setActiveCatalog,
+    } = useStore();
+
+    const customCatalogs = catalogs.filter((c) => c.id !== "general");
+    const isCustomCatalogActive =
+        currentTab === "store" && customCatalogs.some((c) => c.id === activeCatalog);
 
     const navItems: {
-        id: NavTab;
+        id: string;
         label: string;
         icon: React.ReactNode;
         badge?: string | number;
         badgeHighlight?: boolean;
+        isActive: boolean;
+        onClick: () => void;
     }[] = [
         {
             id: "store",
             label: "Mağaza",
             icon: <Store className="w-4 h-4" />,
+            isActive: currentTab === "store" && !isCustomCatalogActive,
+            onClick: () => {
+                setActiveCatalog("all");
+                onSelectTab("store");
+            },
         },
+        ...customCatalogs.map((cat) => ({
+            id: `catalog:${cat.id}`,
+            label: cat.label,
+            icon: getCatalogIcon(cat.id, cat.label),
+            badge: cat.count,
+            isActive: currentTab === "store" && activeCatalog === cat.id,
+            onClick: () => {
+                setActiveCatalog(cat.id);
+                onSelectTab("store");
+            },
+        })),
         {
             id: "installed",
             label: "Yüklü",
@@ -37,11 +92,15 @@ export function Navbar({ currentTab, onSelectTab }: NavbarProps) {
                       ? installedApps.length
                       : undefined,
             badgeHighlight: updatableApps.length > 0,
+            isActive: currentTab === "installed",
+            onClick: () => onSelectTab("installed"),
         },
         {
             id: "settings",
             label: "Ayarlar",
             icon: <Settings className="w-4 h-4" />,
+            isActive: currentTab === "settings",
+            onClick: () => onSelectTab("settings"),
         },
     ];
 
@@ -51,7 +110,10 @@ export function Navbar({ currentTab, onSelectTab }: NavbarProps) {
                 {/* Sol Kapsül: Brand Identity */}
                 <button
                     type="button"
-                    onClick={() => onSelectTab("store")}
+                    onClick={() => {
+                        setActiveCatalog("all");
+                        onSelectTab("store");
+                    }}
                     title="Koru Ana Sayfa"
                     className="koza-nav-capsule flex items-center gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-full bg-island border border-subtle shadow-sm shrink-0 transition-colors cursor-pointer hover:border-hover"
                 >
@@ -74,12 +136,12 @@ export function Navbar({ currentTab, onSelectTab }: NavbarProps) {
                     aria-label="Ana Gezinti Menüsü"
                 >
                     {navItems.map((item) => {
-                        const isActive = currentTab === item.id;
+                        const isActive = item.isActive;
                         return (
                             <button
                                 key={item.id}
                                 type="button"
-                                onClick={() => onSelectTab(item.id)}
+                                onClick={item.onClick}
                                 className={`relative flex items-center gap-2 px-2.5 sm:px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-colors duration-200 select-none whitespace-nowrap shrink-0 cursor-pointer outline-none ${
                                     isActive
                                         ? "text-white font-bold"
@@ -124,8 +186,10 @@ export function Navbar({ currentTab, onSelectTab }: NavbarProps) {
                     })}
                 </nav>
 
-                {/* Sağ Kapsül: Sync + Window Controls */}
+                {/* Sağ Kapsül: Notifications + Sync + Window Controls */}
                 <div className="koza-nav-capsule flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-2 rounded-full bg-island border border-subtle shadow-sm shrink-0 transition-colors">
+                    <NotificationPopover onSelectAppById={onSelectAppById} />
+
                     <button
                         type="button"
                         onClick={() => void syncCatalog()}
