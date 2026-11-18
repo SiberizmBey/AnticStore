@@ -60,6 +60,20 @@
             "announcedAt": "09.01.2026",
             "releaseDate": "11.14.2026",
             "upcomingUpdateDate": "27.11.2026",
+            "comingSoon": false,
+            "requirements": {
+                "os": ["windows"],
+                "minOsVersion": "Windows 10 / 11 (64-bit)",
+                "arch": ["x64"],
+                "runtimes": ["WebView2"],
+                "notes": "Opsiyonel ek not"
+            },
+            "permissions": [
+                "network",
+                "filesystem",
+                "notifications",
+                "autostart"
+            ],
             "tags": ["Ses Paneli", "Soundpad", "Açık Kaynak", "Windows"]
         },
         {
@@ -79,6 +93,20 @@
             "announcedAt": "09.10.2026",
             "releaseDate": "10.01.2026",
             "upcomingUpdateDate": "",
+            "comingSoon": false,
+            "requirements": {
+                "os": ["windows"],
+                "minOsVersion": "Windows 10 / 11 (64-bit)",
+                "arch": ["x64"],
+                "runtimes": ["WebView2"],
+                "notes": "Opsiyonel ek not"
+            },
+            "permissions": [
+                "network",
+                "filesystem",
+                "notifications",
+                "autostart"
+            ],
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         },
         {
@@ -100,6 +128,20 @@
             "announcedAt": "08.20.2026",
             "releaseDate": "09.01.2026",
             "upcomingUpdateDate": "",
+            "comingSoon": false,
+            "requirements": {
+                "os": ["windows"],
+                "minOsVersion": "Windows 10 / 11 (64-bit)",
+                "arch": ["x64"],
+                "runtimes": ["WebView2"],
+                "notes": "Opsiyonel ek not"
+            },
+            "permissions": [
+                "network",
+                "filesystem",
+                "notifications",
+                "autostart"
+            ],
             "tags": ["ERP", "CRM", "Açık Kaynak", "Windows"]
         }
     ]
