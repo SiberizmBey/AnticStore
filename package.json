@@ -2,7 +2,7 @@
     "name": "koru",
     "author": "Antic Valley",
     "private": true,
-    "version": "1.0.14",
+    "version": "1.0.18",
     "type": "module",
     "main": "desktop/main.cjs",
     "scripts": {
