@@ -190,6 +190,9 @@ export type ActivityAction =
   | 'uninstall'
   | 'follow'
   | 'unfollow'
+  | 'cancel'
+  | 'launch'
+  | 'update_found'
   | 'error';
 
 export interface ActivityLogEntry {
@@ -201,7 +204,7 @@ export interface ActivityLogEntry {
   previousVersion?: string;
   fileName?: string;
   fileSize?: number;
-  status: 'success' | 'failed';
+  status: 'in_progress' | 'success' | 'failed' | 'cancelled' | 'info';
   message: string;
   timestamp: string;
 }

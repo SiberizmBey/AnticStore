@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   BellRing,
   X,
+  FlaskConical,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -53,6 +54,7 @@ export function NotificationPopover({ onSelectAppById }: NotificationPopoverProp
     markNotificationRead,
     markAllNotificationsRead,
     clearNotifications,
+    sendTestNotification,
   } = useStore();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -221,6 +223,19 @@ export function NotificationPopover({ onSelectAppById }: NotificationPopoverProp
                   </button>
                 ))
               )}
+            </div>
+
+            {/* Temporary Test Action Footer */}
+            <div className="px-4 py-2.5 border-t border-subtle bg-card/40 flex items-center justify-between gap-2 shrink-0">
+              <span className="text-[10px] font-mono text-muted">Geçici Test Aracı</span>
+              <button
+                type="button"
+                onClick={() => void sendTestNotification()}
+                className="px-3 py-1.5 rounded-full bg-inner border border-subtle hover:bg-card-hover hover:border-hover text-[11px] font-semibold text-primary inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+              >
+                <FlaskConical className="w-3 h-3 accent-text" />
+                <span>Test Bildirimi Gönder</span>
+              </button>
             </div>
           </motion.div>
         )}

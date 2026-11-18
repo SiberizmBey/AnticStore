@@ -37,6 +37,52 @@ export function isUpdateAvailable(installedVersion: string | undefined, latestVe
   return compareSemver(latestVersion, installedVersion) > 0;
 }
 
+export interface InstalledMirrorStatus {
+  isUnofficial: boolean;
+  isAheadOfOfficial: boolean;
+  isMissingFromMirrors: boolean;
+}
+
+export function checkInstalledMirrorStatus(
+  installedVersion: string | undefined,
+  latestVersion: string | undefined,
+  releases: Array<{ version: string; tag?: string }> = [],
+  syncError?: string
+): InstalledMirrorStatus {
+  if (!installedVersion || !cleanVersion(installedVersion)) {
+    return { isUnofficial: false, isAheadOfOfficial: false, isMissingFromMirrors: false };
+  }
+  if (
+    syncError ||
+    (!latestVersion && releases.length === 0) ||
+    (latestVersion === '0.0.0' && releases.length === 0)
+  ) {
+    return { isUnofficial: false, isAheadOfOfficial: false, isMissingFromMirrors: false };
+  }
+
+  const isAheadOfOfficial = Boolean(
+    latestVersion &&
+      latestVersion !== '0.0.0' &&
+      compareSemver(installedVersion, latestVersion) > 0
+  );
+
+  const existsInReleases =
+    releases.length > 0
+      ? releases.some(
+          (r) =>
+            compareSemver(r.version, installedVersion) === 0 ||
+            (r.tag ? cleanVersion(r.tag) === cleanVersion(installedVersion) : false)
+        )
+      : Boolean(latestVersion && compareSemver(installedVersion, latestVersion) === 0);
+
+  const isMissingFromMirrors = !existsInReleases;
+  return {
+    isUnofficial: isAheadOfOfficial || isMissingFromMirrors,
+    isAheadOfOfficial,
+    isMissingFromMirrors,
+  };
+}
+
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];

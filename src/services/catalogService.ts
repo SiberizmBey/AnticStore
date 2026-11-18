@@ -156,7 +156,24 @@ function inferCategory(name: string, summary: string, topics: string[]): string 
 }
 
 function normalizeCatalogId(raw?: string): string {
-  const cleaned = (raw || '').trim().toLowerCase();
+  const cleaned = (raw || '')
+    .trim()
+    .replace(/İ/g, 'i')
+    .replace(/I/g, 'i')
+    .replace(/ı/g, 'i')
+    .replace(/Ş/g, 's')
+    .replace(/ş/g, 's')
+    .replace(/Ğ/g, 'g')
+    .replace(/ğ/g, 'g')
+    .replace(/Ü/g, 'u')
+    .replace(/ü/g, 'u')
+    .replace(/Ö/g, 'o')
+    .replace(/ö/g, 'o')
+    .replace(/Ç/g, 'c')
+    .replace(/ç/g, 'c')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
   if (!cleaned || cleaned === 'general' || cleaned === 'genel' || cleaned === 'default' || cleaned === 'main') {
     return 'general';
   }
@@ -216,10 +233,18 @@ function resolveAppCatalog(
   defsMap: Map<string, CatalogDefinition>
 ): { catalogId: string; catalogLabel: string } {
   const catalogId = normalizeCatalogId(rawCatalog);
-  const def = defsMap.get(catalogId);
+  const directDef = defsMap.get(catalogId);
+  if (directDef) {
+    return { catalogId: directDef.id, catalogLabel: directDef.label };
+  }
+  for (const def of defsMap.values()) {
+    if (normalizeCatalogId(def.label) === catalogId) {
+      return { catalogId: def.id, catalogLabel: def.label };
+    }
+  }
   return {
     catalogId,
-    catalogLabel: def?.label || formatCatalogLabel(rawCatalog, catalogId),
+    catalogLabel: formatCatalogLabel(rawCatalog, catalogId),
   };
 }
 
@@ -461,7 +486,7 @@ async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
     }
   }
 
-  return bundledCatalog as RemoteCatalogManifest;
+  return bundledCatalog as unknown as RemoteCatalogManifest;
 }
 
 export async function syncOfficialCatalog(forceRefresh = false): Promise<{

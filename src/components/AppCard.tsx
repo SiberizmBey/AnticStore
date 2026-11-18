@@ -18,6 +18,7 @@ import { motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
 import { AppIcon } from './AppIcon';
 import {
+  checkInstalledMirrorStatus,
   formatBytes,
   formatSpeed,
   formatTurkishDate,
@@ -55,7 +56,16 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   const compatibility = evaluateCompatibility(app, platformInfo);
   const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
   const isNew = Boolean(app.new);
-  const hasSpotlight = !isComingSoon && (hasUpdate || isNew);
+  const mirrorStatus = checkInstalledMirrorStatus(
+    installed?.version,
+    app.latestVersion,
+    app.releases,
+    app.syncError
+  );
+  const isUnofficialVersion = mirrorStatus.isUnofficial;
+  const hasRedSpotlight = isUnofficialVersion;
+  const hasAccentSpotlight = !isUnofficialVersion && !isComingSoon && (hasUpdate || isNew);
+  const hasAnySpotlight = hasRedSpotlight || hasAccentSpotlight;
   const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
   const preferredAsset = app.latestRelease
     ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
@@ -68,6 +78,10 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       return;
     }
     if (isDownloadBlocked) {
+      return;
+    }
+    if (isUnofficialVersion && app.latestRelease) {
+      void installApp(app, { release: app.latestRelease, mode: 'reinstall' });
       return;
     }
     if (hasUpdate) {
@@ -86,7 +100,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!hasSpotlight) return;
+    if (!hasAnySpotlight) return;
     const rect = e.currentTarget.getBoundingClientRect();
     e.currentTarget.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
     e.currentTarget.style.setProperty('--spot-y', `${e.clientY - rect.top}px`);
@@ -100,24 +114,39 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       onClick={() => onSelect(app)}
       onMouseMove={handleMouseMove}
       className={`group relative overflow-hidden flex flex-col justify-between p-5 rounded-3xl bg-card border ${
-        isComingSoon
+        hasRedSpotlight
+          ? 'card-danger-spotlight'
+          : isComingSoon
           ? 'card-coming-soon'
-          : hasSpotlight
+          : hasAccentSpotlight
           ? 'card-update-spotlight border-card hover:border-hover'
           : 'border-card hover:border-hover'
       } hover:bg-card-hover transition-all duration-150 cursor-pointer select-none`}
     >
-      {hasSpotlight && (
+      {hasRedSpotlight ? (
         <>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 card-update-spotlight-aura transition-opacity duration-300"
+            className="pointer-events-none absolute inset-0 card-danger-spotlight-aura transition-opacity duration-300"
           />
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 card-update-spotlight-cursor transition-opacity duration-300"
+            className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 card-danger-spotlight-cursor transition-opacity duration-300"
           />
         </>
+      ) : (
+        hasAccentSpotlight && (
+          <>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 card-update-spotlight-aura transition-opacity duration-300"
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 card-update-spotlight-cursor transition-opacity duration-300"
+            />
+          </>
+        )
       )}
       <div className="relative z-10">
         {/* Card Header */}
@@ -133,10 +162,21 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             />
             <div className="min-w-0">
               <div className="flex items-center gap-2 min-w-0">
-                <h3 className="font-bold text-sm sm:text-base text-primary tracking-tight group-hover:accent-text transition-colors truncate">
+                <h3
+                  className={`font-bold text-sm sm:text-base tracking-tight transition-colors truncate ${
+                    hasRedSpotlight
+                      ? 'text-red-400 group-hover:text-red-300'
+                      : 'text-primary group-hover:accent-text'
+                  }`}
+                >
                   {app.name}
                 </h3>
-                {isNew && !isComingSoon && (
+                {isUnofficialVersion && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 border border-red-500/50 text-red-300 shrink-0">
+                    Resmi Dışı Sürüm
+                  </span>
+                )}
+                {!isUnofficialVersion && isNew && !isComingSoon && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
                     Yeni
                   </span>
@@ -210,7 +250,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             </div>
           )}
 
-          {(app.announcedAt || app.releaseDate || app.upcomingUpdateDate || compatibility) && (
+          {(app.announcedAt || app.releaseDate || compatibility) && (
             <div className="pt-2 border-t border-subtle/60 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-muted font-mono tabular-nums">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
                 {app.releaseDate ? (
@@ -218,9 +258,6 @@ export function AppCard({ app, onSelect }: AppCardProps) {
                 ) : app.announcedAt ? (
                   <span>Duyuru: {formatTurkishDate(app.announcedAt)}</span>
                 ) : null}
-                {app.upcomingUpdateDate && (
-                  <span>Sonraki: {formatTurkishDate(app.upcomingUpdateDate)}</span>
-                )}
               </div>
               <span
                 title={compatibility.summary}
@@ -243,6 +280,20 @@ export function AppCard({ app, onSelect }: AppCardProps) {
           )}
         </div>
 
+        {isUnofficialVersion && (
+          <div className="mb-3 p-3 rounded-2xl bg-red-500/15 border border-red-500/45 text-[11px] text-red-200 flex items-start gap-2 leading-relaxed">
+            <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+            <div className="space-y-1 min-w-0">
+              <p className="font-semibold text-red-100">
+                Uygulama resmi yansılarda var olmayan bir sürüm içeriyor. Lütfen güncel sürümü doğrudan Koru üzerinden indirip kurun.
+              </p>
+              <p className="text-[10px] font-mono tabular-nums text-red-300/90">
+                Kurulu: v{installed?.version} · Resmi Güncel: v{app.latestVersion}
+              </p>
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="mb-3 p-2.5 rounded-2xl bg-red-500/10 border border-red-500/25 text-[11px] text-red-400 flex items-center gap-1.5">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -254,7 +305,12 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       {/* Card Footer */}
       <div className="relative z-10 pt-3 border-t border-subtle flex items-center justify-between gap-2">
         <div className="text-[11px] font-medium truncate">
-          {hasUpdate ? (
+          {isUnofficialVersion && installed ? (
+            <span className="text-red-400 font-bold flex items-center gap-1.5 tabular-nums">
+              <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+              <span>Resmi Olmayan (v{installed.version})</span>
+            </span>
+          ) : hasUpdate ? (
             <span className="accent-text font-semibold tabular-nums flex items-center gap-1.5">
               <span
                 className="h-1.5 w-1.5 shrink-0 rounded-full animate-pulse"
@@ -316,6 +372,8 @@ export function AppCard({ app, onSelect }: AppCardProps) {
                 ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
                 : task
                 ? 'bg-inner border border-subtle text-secondary hover:text-primary cursor-pointer'
+                : isUnofficialVersion
+                ? 'bg-red-600 hover:bg-red-500 text-white border border-red-400/50 active:scale-[0.97] cursor-pointer'
                 : hasUpdate || !installed
                 ? 'btn-primary-koza hover:opacity-90 active:scale-[0.97] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
                 : 'bg-inner border border-subtle hover:bg-card-hover text-primary cursor-pointer'
@@ -330,6 +388,11 @@ export function AppCard({ app, onSelect }: AppCardProps) {
               <>
                 <Ban className="w-3.5 h-3.5" />
                 <span>İndirilemez</span>
+              </>
+            ) : isUnofficialVersion ? (
+              <>
+                <Download className="w-3.5 h-3.5" />
+                <span>Resmi Sürümü Kur</span>
               </>
             ) : hasUpdate ? (
               <>

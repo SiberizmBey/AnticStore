@@ -13,11 +13,20 @@ import {
   Download,
   BellRing,
   AlertCircle,
+  Loader2,
+  Ban as BanIcon,
+  ShieldAlert,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { AppIcon } from '../components/AppIcon';
-import { formatBytes, formatTurkishDate, isUpdateAvailable } from '../utils/semver';
-import type { ActivityAction, StoreApp } from '../types';
+import {
+  checkInstalledMirrorStatus,
+  formatBytes,
+  formatSpeed,
+  formatTurkishDate,
+  isUpdateAvailable,
+} from '../utils/semver';
+import type { ActivityAction, ActivityLogEntry, StoreApp } from '../types';
 
 interface InstalledViewProps {
   onSelectApp: (app: StoreApp) => void;
@@ -35,7 +44,13 @@ function formatActivityTime(iso: string): string {
   })}`;
 }
 
-function getActionMeta(action: ActivityAction): { label: string; colorClass: string } {
+function getActionMeta(
+  action: ActivityAction,
+  status?: ActivityLogEntry['status']
+): { label: string; colorClass: string } {
+  if (status === 'in_progress') {
+    return { label: 'İşlem Sürüyor', colorClass: 'accent-text accent-border accent-subtle' };
+  }
   switch (action) {
     case 'install':
       return { label: 'Kurulum', colorClass: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' };
@@ -49,8 +64,16 @@ function getActionMeta(action: ActivityAction): { label: string; colorClass: str
       return { label: 'Bildirim Açıldı', colorClass: 'accent-text accent-border accent-subtle' };
     case 'unfollow':
       return { label: 'Takip Kapatıldı', colorClass: 'text-muted border-subtle bg-inner' };
+    case 'cancel':
+      return { label: 'İptal Edildi', colorClass: 'text-amber-400 border-amber-500/30 bg-amber-500/10' };
+    case 'launch':
+      return { label: 'Başlatıldı', colorClass: 'text-sky-400 border-sky-500/30 bg-sky-500/10' };
+    case 'update_found':
+      return { label: 'Güncelleme Tespit Edildi', colorClass: 'accent-text accent-border accent-subtle' };
     case 'error':
       return { label: 'Hata', colorClass: 'text-red-400 border-red-500/30 bg-red-500/10' };
+    default:
+      return { label: 'Durum', colorClass: 'text-secondary border-subtle bg-inner' };
   }
 }
 
@@ -63,6 +86,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
     tasks,
     activityHistory,
     clearActivityHistory,
+    installApp,
     updateApp,
     updateAllApps,
     reinstallApp,
@@ -76,15 +100,28 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
   const filteredHistory = useMemo(() => {
     return activityHistory.filter((item) => {
       if (historyFilter === 'installs') {
-        return item.action === 'install' || item.action === 'update' || item.action === 'reinstall';
+        return (
+          item.action === 'install' ||
+          item.action === 'update' ||
+          item.action === 'reinstall' ||
+          item.action === 'update_found'
+        );
       }
       if (historyFilter === 'uninstalls') return item.action === 'uninstall';
       if (historyFilter === 'follows') return item.action === 'follow' || item.action === 'unfollow';
-      if (historyFilter === 'errors') return item.status === 'failed' || item.action === 'error';
+      if (historyFilter === 'errors') {
+        return (
+          item.status === 'failed' ||
+          item.status === 'cancelled' ||
+          item.action === 'error' ||
+          item.action === 'cancel'
+        );
+      }
       return true;
     });
   }, [activityHistory, historyFilter]);
 
+  const activeTasksList = useMemo(() => Object.values(tasks), [tasks]);
   const downloadableUpdatesCount = updatableApps.filter((a) => a.downloadable !== false).length;
 
   return (
@@ -220,14 +257,31 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
             const task = tasks[app.id];
             const isDownloadable = app.downloadable !== false;
             const hasUpdate = Boolean(inst && isUpdateAvailable(inst.version, app.latestVersion));
+            const mirrorStatus = checkInstalledMirrorStatus(
+              inst?.version,
+              app.latestVersion,
+              app.releases,
+              app.syncError
+            );
+            const isUnofficialVersion = mirrorStatus.isUnofficial;
 
             return (
               <div
                 key={app.id}
                 onClick={() => onSelectApp(app)}
-                className="p-4 sm:p-5 rounded-3xl bg-card border border-subtle hover:border-hover transition-colors cursor-pointer space-y-3"
+                className={`relative overflow-hidden p-4 sm:p-5 rounded-3xl bg-card border transition-colors cursor-pointer space-y-3 ${
+                  isUnofficialVersion
+                    ? 'card-danger-spotlight'
+                    : 'border-subtle hover:border-hover'
+                }`}
               >
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                {isUnofficialVersion && (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 card-danger-spotlight-aura"
+                  />
+                )}
+                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div className="flex items-center gap-3.5 min-w-0">
                     <AppIcon
                       name={app.name}
@@ -239,18 +293,29 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-sm sm:text-base font-bold text-primary truncate">
+                        <h3
+                          className={`text-sm sm:text-base font-bold truncate ${
+                            isUnofficialVersion ? 'text-red-400' : 'text-primary'
+                          }`}
+                        >
                           {app.name}
                         </h3>
-                        {!hasUpdate && (
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Güncel</span>
+                        {isUnofficialVersion ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 border border-red-500/50 text-red-300">
+                            <ShieldAlert className="w-3 h-3" />
+                            <span>Resmi Dışı Sürüm</span>
                           </span>
+                        ) : (
+                          !hasUpdate && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Güncel</span>
+                            </span>
+                          )
                         )}
                       </div>
                       <p className="text-xs text-muted font-mono tabular-nums mt-0.5 truncate">
-                        {app.id} · Kurulu: v{inst.version} · Kurulum: {formatTurkishDate(inst.updatedAt)}
+                        {app.id} · Kurulu: v{inst.version} · Resmi: v{app.latestVersion}
                       </p>
                     </div>
                   </div>
@@ -270,7 +335,20 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                       </button>
                     ) : (
                       <>
-                        {hasUpdate && (
+                        {isUnofficialVersion && app.latestRelease && isDownloadable && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void installApp(app, { release: app.latestRelease!, mode: 'reinstall' });
+                            }}
+                            className="px-3.5 py-1.5 rounded-full bg-red-600 hover:bg-red-500 border border-red-400/50 text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Resmi Sürümü Kur</span>
+                          </button>
+                        )}
+                        {!isUnofficialVersion && hasUpdate && (
                           <button
                             type="button"
                             disabled={!isDownloadable}
@@ -335,8 +413,17 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                   </div>
                 </div>
 
+                {isUnofficialVersion && (
+                  <div className="relative z-10 p-3 rounded-2xl bg-red-500/15 border border-red-500/45 text-[11px] text-red-100 flex items-start gap-2">
+                    <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <span>
+                      Uygulama resmi yansılarda var olmayan bir sürüm içeriyor. Lütfen güncel sürümü doğrudan Koru üzerinden indirip kurun.
+                    </span>
+                  </div>
+                )}
+
                 {task && task.totalBytes > 0 && (
-                  <div className="space-y-1">
+                  <div className="relative z-10 space-y-1">
                     <div className="h-1.5 w-full rounded-full bg-inner overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-150"
@@ -393,7 +480,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                 { id: 'installs', label: 'Kurulum & Güncelleme' },
                 { id: 'uninstalls', label: 'Kaldırma' },
                 { id: 'follows', label: 'Takip' },
-                { id: 'errors', label: 'Hatalar' },
+                { id: 'errors', label: 'Hata & İptal' },
               ] as Array<{ id: HistoryFilter; label: string }>
             ).map((tab) => (
               <button
@@ -412,60 +499,153 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
           </div>
         )}
 
-        {filteredHistory.length === 0 ? (
+        {/* Active in-flight tasks without an in_progress entry (fallback safety) */}
+        {activeTasksList
+          .filter((t) => !activityHistory.some((h) => h.appId === t.appId && h.status === 'in_progress'))
+          .map((activeTask) => {
+            const matchedApp = apps.find((a) => a.id === activeTask.appId);
+            return (
+              <div
+                key={`live-${activeTask.appId}`}
+                className="p-3.5 rounded-2xl accent-subtle border accent-border space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Loader2 className="w-4 h-4 accent-text animate-spin shrink-0" />
+                    <span className="font-bold text-primary truncate">
+                      {matchedApp?.name || activeTask.appId}
+                    </span>
+                    <span className="text-[11px] accent-text font-semibold truncate">
+                      {activeTask.message}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-mono font-bold tabular-nums text-primary">
+                      {activeTask.percent}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => void cancelTask(activeTask.appId)}
+                      className="px-2.5 py-1 rounded-full bg-card border border-subtle text-[11px] font-semibold text-primary hover:bg-card-hover cursor-pointer"
+                    >
+                      İptal
+                    </button>
+                  </div>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-card overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-150"
+                    style={{
+                      width: `${Math.max(4, activeTask.percent)}%`,
+                      backgroundColor: 'var(--accent)',
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+
+        {filteredHistory.length === 0 && activeTasksList.length === 0 ? (
           <div className="py-8 text-center text-xs text-muted rounded-2xl bg-inner/40 border border-subtle">
             {activityHistory.length === 0
               ? 'Henüz kaydedilmiş bir indirme veya durum hareketi yok.'
               : 'Seçilen filtreye uygun kayıt bulunamadı.'}
           </div>
         ) : (
-          <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
             {filteredHistory.map((entry) => {
-              const meta = getActionMeta(entry.action);
+              const meta = getActionMeta(entry.action, entry.status);
               const matchedApp = apps.find((a) => a.id === entry.appId);
+              const liveTask = entry.status === 'in_progress' ? tasks[entry.appId] : undefined;
               return (
                 <div
                   key={entry.id}
                   onClick={matchedApp ? () => onSelectApp(matchedApp) : undefined}
-                  className={`p-3 rounded-2xl bg-inner/65 border border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                  className={`p-3 rounded-2xl bg-inner/65 border border-subtle space-y-2 ${
                     matchedApp ? 'hover:border-hover cursor-pointer transition-colors' : ''
                   }`}
                 >
-                  <div className="flex items-start sm:items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-card border border-subtle flex items-center justify-center shrink-0">
-                      {entry.status === 'failed' ? (
-                        <AlertCircle className="w-4 h-4 text-red-400" />
-                      ) : entry.action === 'follow' || entry.action === 'unfollow' ? (
-                        <BellRing className="w-4 h-4 accent-text" />
-                      ) : entry.action === 'uninstall' ? (
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      ) : (
-                        <Download className="w-4 h-4 text-emerald-400" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-bold text-primary truncate">
-                          {entry.appName}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${meta.colorClass}`}
-                        >
-                          {meta.label}
-                        </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-start sm:items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-card border border-subtle flex items-center justify-center shrink-0">
+                        {entry.status === 'in_progress' ? (
+                          <Loader2 className="w-4 h-4 accent-text animate-spin" />
+                        ) : entry.status === 'failed' || entry.action === 'error' ? (
+                          <AlertCircle className="w-4 h-4 text-red-400" />
+                        ) : entry.status === 'cancelled' || entry.action === 'cancel' ? (
+                          <BanIcon className="w-4 h-4 text-amber-400" />
+                        ) : entry.action === 'follow' || entry.action === 'unfollow' ? (
+                          <BellRing className="w-4 h-4 accent-text" />
+                        ) : entry.action === 'uninstall' ? (
+                          <Trash2 className="w-4 h-4 text-red-400" />
+                        ) : entry.action === 'launch' ? (
+                          <Play className="w-4 h-4 text-sky-400" />
+                        ) : entry.action === 'update_found' ? (
+                          <RefreshCw className="w-4 h-4 accent-text" />
+                        ) : (
+                          <Download className="w-4 h-4 text-emerald-400" />
+                        )}
                       </div>
-                      <p className="text-[11px] text-secondary mt-0.5 truncate">
-                        {entry.message}
-                        {entry.fileSize && entry.fileSize > 0
-                          ? ` · ${formatBytes(entry.fileSize)}`
-                          : ''}
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-primary truncate">
+                            {entry.appName}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${meta.colorClass}`}
+                          >
+                            {meta.label}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-secondary mt-0.5 truncate">
+                          {liveTask ? liveTask.message : entry.message}
+                          {entry.fileSize && entry.fileSize > 0
+                            ? ` · ${formatBytes(entry.fileSize)}`
+                            : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {liveTask && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void cancelTask(entry.appId);
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-card border border-subtle text-[11px] font-semibold text-primary hover:bg-card-hover cursor-pointer"
+                        >
+                          İptal ({liveTask.percent}%)
+                        </button>
+                      )}
+                      <span className="text-[10px] font-mono text-muted tabular-nums">
+                        {formatActivityTime(entry.timestamp)}
+                      </span>
                     </div>
                   </div>
 
-                  <span className="text-[10px] font-mono text-muted tabular-nums shrink-0">
-                    {formatActivityTime(entry.timestamp)}
-                  </span>
+                  {liveTask && (
+                    <div className="space-y-1 pt-0.5">
+                      <div className="h-1.5 w-full rounded-full bg-card overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-150"
+                          style={{
+                            width: `${Math.max(4, liveTask.percent)}%`,
+                            backgroundColor: 'var(--accent)',
+                          }}
+                        />
+                      </div>
+                      {liveTask.totalBytes > 0 && (
+                        <div className="flex items-center justify-between text-[10px] font-mono tabular-nums text-muted">
+                          <span>
+                            {formatBytes(liveTask.receivedBytes)} / {formatBytes(liveTask.totalBytes)}
+                          </span>
+                          <span>{formatSpeed(liveTask.speedBps)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

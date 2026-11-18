@@ -4,10 +4,6 @@ import {
     PackageCheck,
     Settings,
     RefreshCw,
-    Briefcase,
-    FolderKanban,
-    Code2,
-    Gamepad2,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useStore } from "../context/StoreContext";
@@ -22,34 +18,14 @@ interface NavbarProps {
     onSelectAppById?: (appId: string) => void;
 }
 
-function getCatalogIcon(catalogId: string, label: string) {
-    const key = `${catalogId} ${label}`.toLowerCase();
-    if (/(job|iş|erp|crm|kurumsal|enterprise|ofis)/.test(key)) {
-        return <Briefcase className="w-4 h-4" />;
-    }
-    if (/(dev|code|geliştirici|sdk|cli|api)/.test(key)) {
-        return <Code2 className="w-4 h-4" />;
-    }
-    if (/(game|oyun|arcade)/.test(key)) {
-        return <Gamepad2 className="w-4 h-4" />;
-    }
-    return <FolderKanban className="w-4 h-4" />;
-}
-
 export function Navbar({ currentTab, onSelectTab, onSelectAppById }: NavbarProps) {
     const {
         isSyncing,
         syncCatalog,
         installedApps,
         updatableApps,
-        catalogs,
-        activeCatalog,
         setActiveCatalog,
     } = useStore();
-
-    const customCatalogs = catalogs.filter((c) => c.id !== "general");
-    const isCustomCatalogActive =
-        currentTab === "store" && customCatalogs.some((c) => c.id === activeCatalog);
 
     const navItems: {
         id: string;
@@ -64,23 +40,12 @@ export function Navbar({ currentTab, onSelectTab, onSelectAppById }: NavbarProps
             id: "store",
             label: "Mağaza",
             icon: <Store className="w-4 h-4" />,
-            isActive: currentTab === "store" && !isCustomCatalogActive,
+            isActive: currentTab === "store",
             onClick: () => {
                 setActiveCatalog("all");
                 onSelectTab("store");
             },
         },
-        ...customCatalogs.map((cat) => ({
-            id: `catalog:${cat.id}`,
-            label: cat.label,
-            icon: getCatalogIcon(cat.id, cat.label),
-            badge: cat.count,
-            isActive: currentTab === "store" && activeCatalog === cat.id,
-            onClick: () => {
-                setActiveCatalog(cat.id);
-                onSelectTab("store");
-            },
-        })),
         {
             id: "installed",
             label: "Yüklü",

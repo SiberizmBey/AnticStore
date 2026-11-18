@@ -197,6 +197,20 @@ async function createServer() {
 
   app.get('/api/catalog/official', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    const localPath = path.join(__dirname, 'catalog.json');
+    if (fs.existsSync(localPath)) {
+      try {
+        const raw = fs.readFileSync(localPath, 'utf8');
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed && Array.isArray(parsed.apps)) {
+          res.json({ ...parsed, _source: 'local-catalog' });
+          return;
+        }
+      } catch {
+        // Fall through to remote candidates if local JSON is invalid
+      }
+    }
+
     const cacheKey = 'official:SiberizmBey/AnticStore';
     const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
     const cached = forceRefresh ? null : getCached(cacheKey);
@@ -233,19 +247,6 @@ async function createServer() {
         }
       } catch {
         // Try next candidate
-      }
-    }
-
-    // Fallback to local catalog.json in workspace
-    const localPath = path.join(__dirname, 'catalog.json');
-    if (fs.existsSync(localPath)) {
-      try {
-        const raw = fs.readFileSync(localPath, 'utf8');
-        const parsed = JSON.parse(raw) as Record<string, unknown>;
-        res.json({ ...parsed, _source: 'local-fallback' });
-        return;
-      } catch {
-        // The local catalog is the sole fallback.
       }
     }
 

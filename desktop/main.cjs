@@ -777,6 +777,29 @@ ipcMain.handle('store:open-downloads', async () => {
   await shell.openPath(DOWNLOADS_DIR());
 });
 
+ipcMain.handle('store:get-autostart', async () => {
+  const supported = process.platform === 'win32' || process.platform === 'darwin';
+  if (!supported) {
+    return { enabled: false, supported: false };
+  }
+  try {
+    const settings = app.getLoginItemSettings();
+    return { enabled: Boolean(settings.openAtLogin), supported: true };
+  } catch {
+    return { enabled: false, supported: false };
+  }
+});
+
+ipcMain.handle('store:set-autostart', async (_event, enabled) => {
+  const supported = process.platform === 'win32' || process.platform === 'darwin';
+  if (!supported) {
+    return { enabled: false, supported: false };
+  }
+  app.setLoginItemSettings({ openAtLogin: Boolean(enabled) });
+  const settings = app.getLoginItemSettings();
+  return { enabled: Boolean(settings.openAtLogin), supported: true };
+});
+
 async function createWindow() {
   const iconPath = path.join(
     app.getAppPath(),

@@ -27,6 +27,11 @@ const FOLLOWED_APPS_STORAGE_KEY = 'koru_followed_apps_v1';
 const FOLLOWED_SNAPSHOT_STORAGE_KEY = 'koru_followed_snapshot_v1';
 const ACTIVITY_HISTORY_STORAGE_KEY = 'koru_activity_history_v1';
 const NOTIFIED_EVENTS_STORAGE_KEY = 'koru_notified_events_v1';
+const DESKTOP_NOTIFICATIONS_STORAGE_KEY = 'koru_desktop_notifications_v1';
+const INAPP_NOTIFICATIONS_STORAGE_KEY = 'koru_inapp_notifications_v1';
+const AUTOSTART_STORAGE_KEY = 'koru_autostart_v1';
+
+export type BrowserNotificationPermission = NotificationPermission | 'unsupported';
 
 interface FollowedAppSnapshot {
   downloadable: boolean;
@@ -61,6 +66,33 @@ function loadWebInstalled(): Record<string, InstalledAppRecord> {
   return parsed && typeof parsed === 'object' ? parsed : {};
 }
 
+function loadActivityHistory(): ActivityLogEntry[] {
+  const saved = loadJsonStorage<unknown>(ACTIVITY_HISTORY_STORAGE_KEY, []);
+  if (!Array.isArray(saved)) return [];
+  return saved
+    .filter(
+      (item): item is ActivityLogEntry =>
+        Boolean(item && typeof item === 'object' && typeof (item as ActivityLogEntry).id === 'string')
+    )
+    .slice(0, 100)
+    .map((item) =>
+      item.status === 'in_progress'
+        ? {
+            ...item,
+            status: 'cancelled' as const,
+            message: `${item.message} (Oturum sonlandığı için yarıda kesildi)`,
+          }
+        : item
+    );
+}
+
+function readNotificationPermission(): BrowserNotificationPermission {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported';
+  }
+  return window.Notification.permission;
+}
+
 interface StoreContextType {
   platformInfo: PlatformInfo;
   officialSource: CatalogSource;
@@ -89,7 +121,17 @@ interface StoreContextType {
   activeToasts: StoreNotification[];
   followedAppIds: string[];
   activityHistory: ActivityLogEntry[];
+  notificationPermission: BrowserNotificationPermission;
+  desktopNotificationsEnabled: boolean;
+  inAppNotificationsEnabled: boolean;
+  autostartEnabled: boolean;
+  autostartSupported: boolean;
   setInstallMode: (mode: InstallMode) => void;
+  setDesktopNotificationsEnabled: (enabled: boolean) => void;
+  setInAppNotificationsEnabled: (enabled: boolean) => void;
+  requestNotificationPermission: () => Promise<BrowserNotificationPermission>;
+  sendTestNotification: () => Promise<void>;
+  toggleAutostart: (enabled: boolean) => Promise<void>;
   syncCatalog: () => Promise<void>;
   syncSignals: (forceRefresh?: boolean) => Promise<void>;
   markSignalsAsRead: () => void;
@@ -168,16 +210,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const saved = loadJsonStorage<unknown>(FOLLOWED_APPS_STORAGE_KEY, []);
     return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [];
   });
-  const [activityHistory, setActivityHistory] = useState<ActivityLogEntry[]>(() => {
-    const saved = loadJsonStorage<ActivityLogEntry[]>(ACTIVITY_HISTORY_STORAGE_KEY, []);
-    return Array.isArray(saved) ? saved.slice(0, 100) : [];
-  });
+  const [activityHistory, setActivityHistory] = useState<ActivityLogEntry[]>(() =>
+    loadActivityHistory()
+  );
+  const [notificationPermission, setNotificationPermission] = useState<BrowserNotificationPermission>(
+    () => readNotificationPermission()
+  );
+  const [desktopNotificationsEnabled, setDesktopNotificationsEnabledState] = useState<boolean>(
+    () => loadJsonStorage<boolean>(DESKTOP_NOTIFICATIONS_STORAGE_KEY, true)
+  );
+  const [inAppNotificationsEnabled, setInAppNotificationsEnabledState] = useState<boolean>(
+    () => loadJsonStorage<boolean>(INAPP_NOTIFICATIONS_STORAGE_KEY, true)
+  );
+  const [autostartEnabled, setAutostartEnabledState] = useState<boolean>(() =>
+    loadJsonStorage<boolean>(AUTOSTART_STORAGE_KEY, false)
+  );
+  const [autostartSupported, setAutostartSupported] = useState<boolean>(false);
   const [installMode, setInstallModeState] = useState<InstallMode>(() => {
     const saved = localStorage.getItem(INSTALL_MODE_STORAGE_KEY);
     return saved === 'silent' ? 'silent' : 'interactive';
   });
 
   const webAbortControllers = useRef<Map<string, AbortController>>(new Map());
+  const activeActivityIds = useRef<Map<string, string>>(new Map());
   const catalogSyncInProgress = useRef(false);
   const catalogSyncRequested = useRef(false);
   const signalsSyncInProgress = useRef(false);
@@ -191,6 +246,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   installedMapRef.current = installedMap;
   const followedAppIdsRef = useRef(followedAppIds);
   followedAppIdsRef.current = followedAppIds;
+  const desktopNotificationsEnabledRef = useRef(desktopNotificationsEnabled);
+  desktopNotificationsEnabledRef.current = desktopNotificationsEnabled;
+  const inAppNotificationsEnabledRef = useRef(inAppNotificationsEnabled);
+  inAppNotificationsEnabledRef.current = inAppNotificationsEnabled;
+
+  useEffect(() => {
+    saveJsonStorage(ACTIVITY_HISTORY_STORAGE_KEY, activityHistory);
+  }, [activityHistory]);
 
   const dismissToast = useCallback((id: string) => {
     setActiveToasts((prev) => prev.filter((t) => t.id !== id));
@@ -204,6 +267,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       appId?: string;
       showToast?: boolean;
       sendBrowserNotification?: boolean;
+      forceToast?: boolean;
     }) => {
       const entry: StoreNotification = {
         id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -221,7 +285,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
 
-      if (payload.showToast !== false) {
+      if (payload.forceToast || (payload.showToast !== false && inAppNotificationsEnabledRef.current)) {
         setActiveToasts((prev) => [entry, ...prev].slice(0, 3));
         window.setTimeout(() => {
           setActiveToasts((prev) => prev.filter((t) => t.id !== entry.id));
@@ -230,6 +294,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       if (
         payload.sendBrowserNotification &&
+        desktopNotificationsEnabledRef.current &&
         typeof window !== 'undefined' &&
         'Notification' in window &&
         window.Notification.permission === 'granted'
@@ -247,24 +312,103 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const recordActivity = useCallback(
-    (entry: Omit<ActivityLogEntry, 'id' | 'timestamp'>) => {
+    (entry: Omit<ActivityLogEntry, 'id' | 'timestamp'>): string => {
+      const id = `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const full: ActivityLogEntry = {
         ...entry,
-        id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id,
         timestamp: new Date().toISOString(),
       };
-      setActivityHistory((prev) => {
-        const next = [full, ...prev].slice(0, 100);
-        saveJsonStorage(ACTIVITY_HISTORY_STORAGE_KEY, next);
-        return next;
-      });
+      setActivityHistory((prev) => [full, ...prev].slice(0, 100));
+      return id;
+    },
+    []
+  );
+
+  const updateActivity = useCallback(
+    (id: string, patch: Partial<Omit<ActivityLogEntry, 'id'>>) => {
+      setActivityHistory((prev) =>
+        prev.map((item) => (item.id === id ? { ...item, ...patch } : item))
+      );
     },
     []
   );
 
   const clearActivityHistory = useCallback(() => {
     setActivityHistory([]);
-    saveJsonStorage(ACTIVITY_HISTORY_STORAGE_KEY, []);
+  }, []);
+
+  const setDesktopNotificationsEnabled = useCallback((enabled: boolean) => {
+    setDesktopNotificationsEnabledState(enabled);
+    saveJsonStorage(DESKTOP_NOTIFICATIONS_STORAGE_KEY, enabled);
+  }, []);
+
+  const setInAppNotificationsEnabled = useCallback((enabled: boolean) => {
+    setInAppNotificationsEnabledState(enabled);
+    saveJsonStorage(INAPP_NOTIFICATIONS_STORAGE_KEY, enabled);
+  }, []);
+
+  const requestNotificationPermission = useCallback(async (): Promise<BrowserNotificationPermission> => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      return 'unsupported';
+    }
+    try {
+      const result = await window.Notification.requestPermission();
+      setNotificationPermission(result);
+      if (result === 'granted') {
+        setDesktopNotificationsEnabledState(true);
+        saveJsonStorage(DESKTOP_NOTIFICATIONS_STORAGE_KEY, true);
+      }
+      return result;
+    } catch {
+      const current = readNotificationPermission();
+      setNotificationPermission(current);
+      return current;
+    }
+  }, []);
+
+  const sendTestNotification = useCallback(async () => {
+    let perm = readNotificationPermission();
+    if (perm === 'default') {
+      perm = await requestNotificationPermission();
+    } else {
+      setNotificationPermission(perm);
+    }
+
+    const timeStr = new Date().toLocaleTimeString('tr-TR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    pushNotification({
+      kind: 'release',
+      title: 'Koru Test Bildirimi',
+      message:
+        perm === 'granted'
+          ? `Bildirim kanalları aktif. Masaüstü ve uygulama içi uyarı test edildi (${timeStr}).`
+          : `Uygulama içi test bildirimi gönderildi (${timeStr}). Masaüstü bildirim izni: ${perm === 'denied' ? 'Engelli' : 'Bekleniyor'}.`,
+      showToast: true,
+      forceToast: true,
+      sendBrowserNotification: true,
+    });
+  }, [pushNotification, requestNotificationPermission]);
+
+  const toggleAutostart = useCallback(async (enabled: boolean) => {
+    if (window.anticStoreDesktop?.setAutostartEnabled) {
+      try {
+        const res = await window.anticStoreDesktop.setAutostartEnabled(enabled);
+        setAutostartSupported(Boolean(res.supported));
+        setAutostartEnabledState(Boolean(res.enabled));
+        saveJsonStorage(AUTOSTART_STORAGE_KEY, Boolean(res.enabled));
+        return;
+      } catch (err) {
+        console.error('Failed to update autostart setting:', err);
+      }
+    }
+    setAutostartEnabledState(enabled);
+    saveJsonStorage(AUTOSTART_STORAGE_KEY, enabled);
   }, []);
 
   const markNotificationRead = useCallback((id: string) => {
@@ -416,6 +560,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(console.error)
       .finally(() => setGitHubTokenStatusLoaded(true));
+    if (desktop.getAutostartStatus) {
+      desktop
+        .getAutostartStatus()
+        .then(({ enabled, supported }) => {
+          setAutostartSupported(Boolean(supported));
+          setAutostartEnabledState(Boolean(enabled));
+          saveJsonStorage(AUTOSTART_STORAGE_KEY, Boolean(enabled));
+        })
+        .catch(console.error);
+    }
     void refreshInstalled();
 
     const unsubscribe = desktop.onTaskProgress((progress) => {
@@ -501,6 +655,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               if (!notifiedEventsRef.current[eventKey]) {
                 notifiedEventsRef.current[eventKey] = true;
                 eventsChanged = true;
+                recordActivity({
+                  appId: app.id,
+                  appName: app.name,
+                  action: 'update_found',
+                  version: app.latestVersion,
+                  previousVersion: inst.version,
+                  status: 'info',
+                  message: `Yeni sürüm tespit edildi: v${inst.version} → v${app.latestVersion}`,
+                });
                 pushNotification({
                   kind: 'update',
                   title: `${app.name} Güncellemesi Hazır`,
@@ -563,7 +726,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       catalogSyncInProgress.current = false;
       setIsSyncing(false);
     }
-  }, [pushNotification, refreshInstalled, syncSignals]);
+  }, [pushNotification, recordActivity, refreshInstalled, syncSignals]);
 
   useEffect(() => {
     void syncCatalog();
@@ -622,19 +785,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     const release = options?.release || app.latestRelease;
     if (!release) {
+      const msg = 'Bu uygulama için indirilebilir bir sürüm bulunamadı.';
       setAppErrors((prev) => ({
         ...prev,
-        [app.id]: 'Bu uygulama için indirilebilir bir sürüm bulunamadı.',
+        [app.id]: msg,
       }));
+      recordActivity({
+        appId: app.id,
+        appName: app.name,
+        action: 'error',
+        status: 'failed',
+        message: msg,
+      });
       return;
     }
 
     const asset = options?.asset || pickPreferredAsset(release.assets, platformInfo.platform);
     if (!asset) {
+      const msg = `${release.tag} sürümünde indirilebilir kurulum paketi yok.`;
       setAppErrors((prev) => ({
         ...prev,
-        [app.id]: `${release.tag} sürümünde indirilebilir kurulum paketi yok.`,
+        [app.id]: msg,
       }));
+      recordActivity({
+        appId: app.id,
+        appName: app.name,
+        action: 'error',
+        version: release.version,
+        status: 'failed',
+        message: msg,
+      });
       return;
     }
 
@@ -642,6 +822,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const previousVersion = installedMapRef.current[app.id]?.version;
     const actionKind: ActivityAction =
       mode === 'update' ? 'update' : mode === 'reinstall' ? 'reinstall' : 'install';
+
+    const activityId = recordActivity({
+      appId: app.id,
+      appName: app.name,
+      action: actionKind,
+      version: release.version,
+      previousVersion,
+      fileName: asset.name,
+      fileSize: asset.size,
+      status: 'in_progress',
+      message: `${asset.name} indiriliyor (v${release.version})...`,
+    });
+    activeActivityIds.current.set(app.id, activityId);
 
     try {
       if (window.anticStoreDesktop) {
@@ -765,16 +958,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           ? `v${previousVersion} → v${release.version} (${asset.name})`
           : `v${release.version} (${asset.name})`;
 
-      recordActivity({
-        appId: app.id,
-        appName: app.name,
-        action: actionKind,
-        version: release.version,
-        previousVersion,
-        fileName: asset.name,
-        fileSize: asset.size,
+      updateActivity(activityId, {
         status: 'success',
         message: actionSuccessMessage,
+        timestamp: new Date().toISOString(),
       });
       pushNotification({
         kind: 'install',
@@ -784,24 +971,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         sendBrowserNotification: true,
       });
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        // Cancelled by user
-      } else if (err instanceof Error && err.message.toLowerCase().includes('abort')) {
-        // Cancelled by user
+      if (
+        (err instanceof DOMException && err.name === 'AbortError') ||
+        (err instanceof Error && err.message.toLowerCase().includes('abort'))
+      ) {
+        updateActivity(activityId, {
+          action: 'cancel',
+          status: 'cancelled',
+          message: `${asset.name} indirmesi kullanıcı tarafından iptal edildi.`,
+          timestamp: new Date().toISOString(),
+        });
       } else {
         const msg = err instanceof Error ? err.message : 'Kurulum sırasında hata oluştu.';
         setAppErrors((prev) => ({
           ...prev,
           [app.id]: msg,
         }));
-        recordActivity({
-          appId: app.id,
-          appName: app.name,
+        updateActivity(activityId, {
           action: 'error',
-          version: release.version,
-          fileName: asset.name,
           status: 'failed',
           message: msg,
+          timestamp: new Date().toISOString(),
         });
         pushNotification({
           kind: 'warning',
@@ -811,6 +1001,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } finally {
+      activeActivityIds.current.delete(app.id);
       webAbortControllers.current.delete(app.id);
       setTasks((prev) => {
         const copy = { ...prev };
@@ -832,6 +1023,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     clearAppError(app.id);
     const existing = installedMap[app.id];
     if (!existing) return;
+
+    const uninstallActivityId = recordActivity({
+      appId: app.id,
+      appName: app.name,
+      action: 'uninstall',
+      version: existing.version,
+      status: 'in_progress',
+      message: `${app.name} (v${existing.version}) kaldırılıyor...`,
+    });
 
     try {
       setTasks((prev) => ({
@@ -863,13 +1063,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return copy;
       });
 
-      recordActivity({
-        appId: app.id,
-        appName: app.name,
-        action: 'uninstall',
-        version: existing.version,
+      updateActivity(uninstallActivityId, {
         status: 'success',
         message: `v${existing.version} sürümü kaldırıldı.`,
+        timestamp: new Date().toISOString(),
       });
       pushNotification({
         kind: 'install',
@@ -883,13 +1080,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ...prev,
         [app.id]: msg,
       }));
-      recordActivity({
-        appId: app.id,
-        appName: app.name,
+      updateActivity(uninstallActivityId, {
         action: 'error',
-        version: existing.version,
         status: 'failed',
         message: msg,
+        timestamp: new Date().toISOString(),
       });
     } finally {
       setTasks((prev) => {
@@ -906,12 +1101,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return { launched: false, message: 'Uygulama henüz kurulmamış.' };
     }
     if (window.anticStoreDesktop) {
-      return window.anticStoreDesktop.launchApp({
+      const result = await window.anticStoreDesktop.launchApp({
         appId: app.id,
         name: app.name,
         executablePath: existing.executablePath,
         installLocation: existing.installLocation,
       });
+      if (result.launched) {
+        recordActivity({
+          appId: app.id,
+          appName: app.name,
+          action: 'launch',
+          version: existing.version,
+          status: 'info',
+          message: `${app.name} (v${existing.version}) başlatıldı.`,
+        });
+      }
+      return result;
     }
     return {
       launched: false,
@@ -920,8 +1126,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const cancelTask = async (appId: string) => {
+    const activityId = activeActivityIds.current.get(appId);
     if (window.anticStoreDesktop) {
       await window.anticStoreDesktop.cancelDownload(appId);
+      if (activityId) {
+        updateActivity(activityId, {
+          action: 'cancel',
+          status: 'cancelled',
+          message: 'İndirme kullanıcı tarafından iptal edildi.',
+          timestamp: new Date().toISOString(),
+        });
+        activeActivityIds.current.delete(appId);
+      }
     } else {
       const controller = webAbortControllers.current.get(appId);
       if (controller) controller.abort();
@@ -1015,7 +1231,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         activeToasts,
         followedAppIds,
         activityHistory,
+        notificationPermission,
+        desktopNotificationsEnabled,
+        inAppNotificationsEnabled,
+        autostartEnabled,
+        autostartSupported,
         setInstallMode,
+        setDesktopNotificationsEnabled,
+        setInAppNotificationsEnabled,
+        requestNotificationPermission,
+        sendTestNotification,
+        toggleAutostart,
         syncCatalog,
         syncSignals,
         markSignalsAsRead,

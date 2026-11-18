@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Search,
   Grid,
@@ -18,10 +18,10 @@ import {
   ShieldAlert,
   Briefcase,
   FolderKanban,
-  Layers,
   Code2,
   Gamepad2,
   Clock,
+  Headphones,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -29,6 +29,7 @@ import { AppCard } from '../components/AppCard';
 import { AppIcon } from '../components/AppIcon';
 import { GitHubTokenCard } from '../components/GitHubTokenCard';
 import {
+  checkInstalledMirrorStatus,
   formatBytes,
   formatTurkishDate,
   isUpdateAvailable,
@@ -45,6 +46,12 @@ type StatusFilter = 'all' | 'installed' | 'updates' | 'upcoming';
 
 function getCatalogIcon(catalogId: string, label: string, sizeClass = 'w-4 h-4') {
   const key = `${catalogId} ${label}`.toLowerCase();
+  if (/(magaza|mağaza|store|market)/.test(key)) {
+    return <Store className={sizeClass} />;
+  }
+  if (/(ses|sound|audio|music|medya)/.test(key)) {
+    return <Headphones className={sizeClass} />;
+  }
   if (/(job|iş|erp|crm|kurumsal|enterprise|ofis)/.test(key)) {
     return <Briefcase className={sizeClass} />;
   }
@@ -61,8 +68,6 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
   const {
     apps,
     catalogs,
-    activeCatalog,
-    setActiveCatalog,
     installedMap,
     tasks,
     isSyncing,
@@ -80,7 +85,6 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
   } = useStore();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Tümü');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const hasGitHubRateLimitError = apps.some((app) =>
@@ -88,63 +92,37 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
   ) || /403|rate.?limit/i.test(syncError || '');
   const hasGitHubRepoError = apps.some((app) => /404|not found/i.test(app.syncError || ''));
 
-  const activeCatalogDef = useMemo(
-    () => (activeCatalog === 'all' ? null : catalogs.find((c) => c.id === activeCatalog) || null),
-    [activeCatalog, catalogs]
-  );
-
-  const catalogScopedApps = useMemo(() => {
-    if (activeCatalog === 'all') return apps;
-    return apps.filter((a) => a.catalogId === activeCatalog);
-  }, [apps, activeCatalog]);
-
-  const categories = useMemo(() => {
-    const set = new Set<string>(['Tümü']);
-    for (const app of catalogScopedApps) {
-      if (app.category) set.add(app.category);
-    }
-    return Array.from(set);
-  }, [catalogScopedApps]);
-
-  useEffect(() => {
-    if (selectedCategory !== 'Tümü' && !categories.includes(selectedCategory)) {
-      setSelectedCategory('Tümü');
-    }
-  }, [categories, selectedCategory]);
-
   const latestUpdatedApp = useMemo(() => {
-    const releasedPool = catalogScopedApps.filter(
-      (a) => a.downloadable !== false && !a.comingSoon
-    );
+    const releasedPool = apps.filter((a) => a.downloadable !== false && !a.comingSoon);
     if (releasedPool.length === 0) return null;
     return [...releasedPool].sort((a, b) => {
       const timeA = new Date(a.latestRelease?.publishedAt || a.syncedAt).getTime() || 0;
       const timeB = new Date(b.latestRelease?.publishedAt || b.syncedAt).getTime() || 0;
       return timeB - timeA;
     })[0];
-  }, [catalogScopedApps]);
+  }, [apps]);
 
-  const scopedInstalledCount = useMemo(
-    () => catalogScopedApps.filter((a) => Boolean(installedMap[a.id])).length,
-    [catalogScopedApps, installedMap]
+  const installedCount = useMemo(
+    () => apps.filter((a) => Boolean(installedMap[a.id])).length,
+    [apps, installedMap]
   );
 
-  const scopedUpdatableCount = useMemo(
+  const updatableCount = useMemo(
     () =>
-      catalogScopedApps.filter((a) => {
+      apps.filter((a) => {
         const inst = installedMap[a.id];
         return Boolean(inst && isUpdateAvailable(inst.version, a.latestVersion));
       }).length,
-    [catalogScopedApps, installedMap]
+    [apps, installedMap]
   );
 
   const upcomingAppsCount = useMemo(
-    () => catalogScopedApps.filter((a) => a.downloadable === false || a.comingSoon).length,
-    [catalogScopedApps]
+    () => apps.filter((a) => a.downloadable === false || a.comingSoon).length,
+    [apps]
   );
 
   const filteredApps = useMemo(() => {
-    return catalogScopedApps.filter((app) => {
+    return apps.filter((app) => {
       const installed = installedMap[app.id];
       const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
       const isComingSoon = app.downloadable === false || Boolean(app.comingSoon);
@@ -152,10 +130,6 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
       if (statusFilter === 'installed' && !installed) return false;
       if (statusFilter === 'updates' && !hasUpdate) return false;
       if (statusFilter === 'upcoming' && !isComingSoon) return false;
-
-      if (selectedCategory !== 'Tümü' && app.category !== selectedCategory) {
-        return false;
-      }
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -171,7 +145,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
 
       return true;
     });
-  }, [catalogScopedApps, installedMap, statusFilter, selectedCategory, searchQuery]);
+  }, [apps, installedMap, statusFilter, searchQuery]);
 
   const groupedSections = useMemo(() => {
     const orderMap = new Map<string, CatalogDefinition>();
@@ -215,6 +189,15 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
       spotlightInstalled &&
       isUpdateAvailable(spotlightInstalled.version, latestUpdatedApp.latestVersion)
   );
+  const spotlightMirrorStatus = latestUpdatedApp
+    ? checkInstalledMirrorStatus(
+        spotlightInstalled?.version,
+        latestUpdatedApp.latestVersion,
+        latestUpdatedApp.releases,
+        latestUpdatedApp.syncError
+      )
+    : { isUnofficial: false, isAheadOfOfficial: false, isMissingFromMirrors: false };
+  const spotlightIsUnofficial = spotlightMirrorStatus.isUnofficial;
   const spotlightDownloadBlocked = Boolean(
     latestUpdatedApp &&
       !spotlightDownloadable &&
@@ -232,35 +215,17 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
           <div className="rounded-2xl border accent-border accent-subtle p-2.5 accent-text">
-            {activeCatalogDef ? (
-              getCatalogIcon(activeCatalogDef.id, activeCatalogDef.label, 'h-5 w-5')
-            ) : (
-              <Store className="h-5 w-5" />
-            )}
+            <Store className="h-5 w-5" />
           </div>
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold text-primary">
-                {activeCatalogDef ? `${activeCatalogDef.label} Kataloğu` : 'Uygulama Mağazası'}
-              </h1>
-              {activeCatalogDef && (
-                <button
-                  type="button"
-                  onClick={() => setActiveCatalog('all')}
-                  className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-card border border-subtle text-secondary hover:text-primary hover:bg-card-hover transition-colors cursor-pointer"
-                >
-                  Tüm Kataloglar
-                </button>
-              )}
-            </div>
+            <h1 className="text-xl font-bold text-primary">Uygulama Mağazası</h1>
             <p className="mt-1 text-xs text-muted">
-              {activeCatalogDef?.description ||
-                'Hesap girişi gerektirmeden uygulamaları keşfedin, kurun, güncelleyin veya kaldırın.'}
+              Hesap girişi gerektirmeden uygulamaları keşfedin, kurun, güncelleyin veya kaldırın.
             </p>
           </div>
         </div>
 
-        {catalogScopedApps.length > 0 && (
+        {apps.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <button
               type="button"
@@ -271,7 +236,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   : 'bg-card border-subtle text-secondary hover:bg-card-hover'
               }`}
             >
-              Tümü ({catalogScopedApps.length})
+              Tümü ({apps.length})
             </button>
             <button
               type="button"
@@ -282,7 +247,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   : 'bg-card border-subtle text-secondary hover:bg-card-hover'
               }`}
             >
-              Kurulu ({scopedInstalledCount})
+              Kurulu ({installedCount})
             </button>
             <button
               type="button"
@@ -293,7 +258,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   : 'bg-card border-subtle text-secondary hover:bg-card-hover'
               }`}
             >
-              Güncellemeler ({scopedUpdatableCount})
+              Güncellemeler ({updatableCount})
             </button>
             {upcomingAppsCount > 0 && (
               <button
@@ -341,12 +306,22 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
         )}
 
       {/* Latest Updated App Spotlight */}
-      {latestUpdatedApp && !searchQuery.trim() && selectedCategory === 'Tümü' && statusFilter === 'all' && (
+      {latestUpdatedApp && !searchQuery.trim() && statusFilter === 'all' && (
         <section
           onClick={() => onSelectApp(latestUpdatedApp)}
-          className="p-6 rounded-3xl bg-card border border-subtle hover:border-hover transition-colors cursor-pointer"
+          className={`relative overflow-hidden p-6 rounded-3xl bg-card border transition-colors cursor-pointer ${
+            spotlightIsUnofficial
+              ? 'card-danger-spotlight'
+              : 'border-subtle hover:border-hover'
+          }`}
         >
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          {spotlightIsUnofficial && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 card-danger-spotlight-aura"
+            />
+          )}
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex items-start gap-4 min-w-0">
               <AppIcon
                 name={latestUpdatedApp.name}
@@ -357,22 +332,46 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                 imageClassName="h-full w-full object-contain rounded-xl"
               />
               <div className="min-w-0 space-y-1.5">
-                <div className="flex items-center gap-2 text-xs accent-text font-semibold">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Son Güncellenen Uygulama</span>
+                <div
+                  className={`flex items-center gap-2 text-xs font-semibold ${
+                    spotlightIsUnofficial ? 'text-red-400' : 'accent-text'
+                  }`}
+                >
+                  {spotlightIsUnofficial ? (
+                    <ShieldAlert className="w-3.5 h-3.5" />
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {spotlightIsUnofficial
+                      ? 'Resmi Dışı Sürüm Uyarısı'
+                      : 'Son Güncellenen Uygulama'}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <h2 className="text-xl sm:text-2xl font-bold text-primary tracking-tight truncate">
+                <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
+                  <h2
+                    className={`text-xl sm:text-2xl font-bold tracking-tight truncate ${
+                      spotlightIsUnofficial ? 'text-red-400' : 'text-primary'
+                    }`}
+                  >
                     {latestUpdatedApp.name}
                   </h2>
-                  {latestUpdatedApp.new && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold badge-koza shrink-0">
-                      Yeni
+                  {spotlightIsUnofficial ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-500/20 border border-red-500/50 text-red-300 shrink-0">
+                      Resmi Dışı Sürüm
                     </span>
+                  ) : (
+                    latestUpdatedApp.new && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold badge-koza shrink-0">
+                        Yeni
+                      </span>
+                    )
                   )}
                 </div>
                 <p className="text-xs sm:text-sm text-secondary max-w-3xl leading-relaxed">
-                  {latestUpdatedApp.description}
+                  {spotlightIsUnofficial
+                    ? 'Uygulama resmi yansılarda var olmayan bir sürüm içeriyor. Lütfen güncel sürümü doğrudan Koru üzerinden indirip kurun.'
+                    : latestUpdatedApp.description}
                 </p>
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted font-mono tabular-nums pt-1">
                   <span>{latestUpdatedApp.developer}</span>
@@ -390,18 +389,6 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                       <span>
                         Yayın: {formatTurkishDate(latestUpdatedApp.releaseDate || latestUpdatedApp.latestRelease?.publishedAt)}
                       </span>
-                    </>
-                  )}
-                  {latestUpdatedApp.announcedAt && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>Duyuru: {formatTurkishDate(latestUpdatedApp.announcedAt)}</span>
-                    </>
-                  )}
-                  {latestUpdatedApp.upcomingUpdateDate && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>Yaklaşan: {formatTurkishDate(latestUpdatedApp.upcomingUpdateDate)}</span>
                     </>
                   )}
                   {spotlightCompatibility && (
@@ -473,6 +460,21 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                 >
                   <Ban className="w-4 h-4" />
                   <span>İndirilemez</span>
+                </button>
+              ) : spotlightIsUnofficial && latestUpdatedApp.latestRelease ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void installApp(latestUpdatedApp, {
+                      release: latestUpdatedApp.latestRelease!,
+                      mode: 'reinstall',
+                    });
+                  }}
+                  className="px-5 py-2.5 rounded-full text-xs font-bold bg-red-600 hover:bg-red-500 border border-red-400/50 text-white flex items-center gap-2 cursor-pointer whitespace-nowrap"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Resmi Sürümü Kur (v{latestUpdatedApp.latestVersion})</span>
                 </button>
               ) : spotlightHasUpdate ? (
                 <button
@@ -578,70 +580,6 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
         </div>
       </div>
 
-      {/* Catalog & Category Filter Bars */}
-      <div className="space-y-2.5">
-        {catalogs.length > 1 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-            <span className="text-[11px] font-semibold text-muted flex items-center gap-1 mr-1 shrink-0">
-              <Layers className="w-3.5 h-3.5 accent-text" />
-              <span>Katalog:</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setActiveCatalog('all')}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
-                activeCatalog === 'all'
-                  ? 'btn-primary-koza shadow-xs'
-                  : 'bg-card hover:bg-card-hover text-secondary border border-subtle'
-              }`}
-            >
-              <span>Tüm Kataloglar</span>
-              <span className="text-[10px] opacity-80 tabular-nums">({apps.length})</span>
-            </button>
-            {catalogs.map((cat) => {
-              const isSelected = activeCatalog === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setActiveCatalog(cat.id)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer flex items-center gap-1.5 ${
-                    isSelected
-                      ? 'btn-primary-koza shadow-xs'
-                      : 'bg-card hover:bg-card-hover text-secondary border border-subtle'
-                  }`}
-                >
-                  {getCatalogIcon(cat.id, cat.label, 'w-3.5 h-3.5')}
-                  <span>{cat.label}</span>
-                  <span className="text-[10px] opacity-80 tabular-nums">({cat.count || 0})</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Category Filter Bar */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-          {categories.map((cat) => {
-            const isSelected = selectedCategory === cat;
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 cursor-pointer ${
-                  isSelected
-                    ? 'btn-primary-koza shadow-xs'
-                    : 'bg-card hover:bg-card-hover text-secondary border border-subtle'
-                }`}
-              >
-                {cat}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* Content Area */}
       {isSyncing && apps.length === 0 ? (
         <div className="py-20 text-center text-xs text-muted flex flex-col items-center justify-center gap-2">
@@ -679,9 +617,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
             type="button"
             onClick={() => {
               setSearchQuery('');
-              setSelectedCategory('Tümü');
               setStatusFilter('all');
-              setActiveCatalog('all');
             }}
             className="accent-text font-semibold hover:underline cursor-pointer"
           >
@@ -691,7 +627,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
       ) : (
         <div className="space-y-8">
           {groupedSections.map((section) => {
-            const showSectionHeader = activeCatalog === 'all' && catalogs.length > 1;
+            const showSectionHeader = catalogs.length > 1;
             const readyApps =
               statusFilter === 'upcoming'
                 ? []
@@ -725,15 +661,6 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                         )}
                       </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setActiveCatalog(section.catalog.id)}
-                      className="px-3 py-1 rounded-full text-[11px] font-semibold bg-card hover:bg-card-hover border border-subtle text-secondary hover:text-primary transition-colors cursor-pointer flex items-center gap-1"
-                    >
-                      <span>Ayrı Göster</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 )}
 
@@ -742,7 +669,11 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                     {readyApps.length > 0 && (
                       <motion.div
                         layout
-                        className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4"
+                        className={
+                          readyApps.length <= 2
+                            ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
+                            : 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4'
+                        }
                       >
                         {readyApps.map((app) => (
                           <AppCard key={app.id} app={app} onSelect={onSelectApp} />
@@ -800,6 +731,13 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                             const hasUpdate = Boolean(
                               installed && isUpdateAvailable(installed.version, app.latestVersion)
                             );
+                            const mirrorStatus = checkInstalledMirrorStatus(
+                              installed?.version,
+                              app.latestVersion,
+                              app.releases,
+                              app.syncError
+                            );
+                            const isUnofficialVersion = mirrorStatus.isUnofficial;
                             const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
                             const asset = app.latestRelease
                               ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
@@ -810,7 +748,11 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                 key={app.id}
                                 onClick={() => onSelectApp(app)}
                                 className={`hover:bg-card-hover transition-colors cursor-pointer group ${
-                                  isComingSoon ? 'bg-amber-500/[0.025]' : ''
+                                  isUnofficialVersion
+                                    ? 'bg-red-500/[0.08]'
+                                    : isComingSoon
+                                    ? 'bg-amber-500/[0.025]'
+                                    : ''
                                 }`}
                               >
                                 <td className="py-3 px-4">
@@ -825,13 +767,26 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                     />
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-2">
-                                        <span className="font-bold text-primary block group-hover:accent-text transition-colors truncate">
+                                        <span
+                                          className={`font-bold block transition-colors truncate ${
+                                            isUnofficialVersion
+                                              ? 'text-red-400 group-hover:text-red-300'
+                                              : 'text-primary group-hover:accent-text'
+                                          }`}
+                                        >
                                           {app.name}
                                         </span>
-                                        {app.new && !isComingSoon && (
-                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
-                                            Yeni
+                                        {isUnofficialVersion ? (
+                                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 border border-red-500/50 text-red-300 shrink-0">
+                                            Resmi Dışı Sürüm
                                           </span>
+                                        ) : (
+                                          app.new &&
+                                          !isComingSoon && (
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold badge-koza shrink-0">
+                                              Yeni
+                                            </span>
+                                          )
                                         )}
                                         {isComingSoon && (
                                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/12 border border-amber-500/35 text-amber-400 shrink-0">
@@ -856,6 +811,11 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                           · {compatibility.badgeLabel}
                                         </span>
                                       </div>
+                                      {isUnofficialVersion && (
+                                        <p className="text-[10px] text-red-300 mt-0.5">
+                                          Uygulama resmi yansılarda var olmayan bir sürüm içeriyor. Lütfen güncel sürümü doğrudan Koru üzerinden indirip kurun.
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
@@ -863,7 +823,11 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                 <td className="py-3 px-4 font-mono tabular-nums">
                                   <span className="text-primary font-semibold">v{app.latestVersion}</span>
                                   {installed && (
-                                    <span className="block text-[10px] text-emerald-400">
+                                    <span
+                                      className={`block text-[10px] ${
+                                        isUnofficialVersion ? 'text-red-400 font-semibold' : 'text-emerald-400'
+                                      }`}
+                                    >
                                       Kurulu: v{installed.version}
                                     </span>
                                   )}
@@ -901,6 +865,8 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                         e.stopPropagation();
                                         if (task) void cancelTask(app.id);
                                         else if (isDownloadBlocked) return;
+                                        else if (isUnofficialVersion && app.latestRelease)
+                                          void installApp(app, { release: app.latestRelease, mode: 'reinstall' });
                                         else if (hasUpdate) void updateApp(app);
                                         else if (installed)
                                           void launchApp(app).then((r) => {
@@ -911,6 +877,8 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                       className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap ${
                                         isDownloadBlocked
                                           ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                                          : isUnofficialVersion
+                                          ? 'bg-red-600 hover:bg-red-500 border border-red-400/50 text-white cursor-pointer'
                                           : hasUpdate || !installed
                                           ? 'btn-primary-koza cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
                                           : 'bg-inner border border-subtle text-primary cursor-pointer'
@@ -923,6 +891,8 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                           <Ban className="w-3 h-3" />
                                           İndirilemez
                                         </span>
+                                      ) : isUnofficialVersion ? (
+                                        'Resmi Sürümü Kur'
                                       ) : hasUpdate ? (
                                         'Güncelle'
                                       ) : installed ? (

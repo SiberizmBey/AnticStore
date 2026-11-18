@@ -2,13 +2,34 @@
     "schemaVersion": 1,
     "storeName": "Koru Resmi Kataloğu",
     "publisher": "Antic Valley",
-    "updatedAt": "2026-11-15T14:15:00Z",
+    "updatedAt": "2026-11-18T17:00:00Z",
+    "catalogs": [
+        {
+            "id": "magaza",
+            "label": "Mağaza",
+            "description": "Antic Valley resmi uygulama mağazası",
+            "order": 1
+        },
+        {
+            "id": "ses",
+            "label": "Ses Yazılımı",
+            "description": "Ses paneli ve ses yönetimi uygulamaları",
+            "order": 2
+        },
+        {
+            "id": "is",
+            "label": "İş",
+            "description": "Kurumsal ERP ve CRM yönetim çözümleri",
+            "order": 3
+        }
+    ],
     "apps": [
         {
             "id": "com.anticvalley.koru",
             "name": "Koru",
             "developer": "SiberizmBey",
             "category": "Mağaza",
+            "catalog": "magaza",
             "summary": "Antic Valley resmi uygulama mağazası",
             "description": "Antic Valley'in uygulamarını keşfetmek, indirmek ve güncellemek için resmi uygulama mağazası.",
             "iconUrl": "./assets/img/icon.png",
@@ -48,6 +69,7 @@
             "name": "Lir",
             "developer": "SiberizmBey",
             "category": "Ses & Medya",
+            "catalog": "ses",
             "summary": "Soundpad muadili açık kaynaklı ses paneli",
             "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
@@ -85,6 +107,7 @@
             "name": "Kirpi: SG",
             "developer": "SiberizmBey",
             "category": "ERP & Yönetim",
+            "catalog": "is",
             "summary": "SG Bıçak Sepeti için geliştirilmiş özel Kirpi sürümü",
             "description": "Fabrika üretim süreçlerini optimize etmek ve müşteri ilişkilerini geliştirmek için SG Bıçak Sepeti'ne özel olarak geliştirilmiş açık kaynaklı bir ERP ve CRM yönetim sistemi.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpifab.png",
@@ -120,6 +143,7 @@
             "name": "Kirpi",
             "developer": "SiberizmBey",
             "category": "ERP & Yönetim",
+            "catalog": "is",
             "summary": "Kurumsal ERP ve CRM yönetim sistemi",
             "description": "Kurumsal kaynak planlaması (ERP) ve müşteri ilişkileri yönetimi (CRM) için açık kaynaklı bir yönetim sistemi. İşletmelerin süreçlerini optimize etmelerine ve müşteri ilişkilerini geliştirmelerine yardımcı olur.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/kirpi.png",
