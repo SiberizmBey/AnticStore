@@ -7,6 +7,15 @@
     "updatedAt": "2026-11-17T09:00:00Z",
     "signals": [
         {
+            "id": "av-02",
+            "code": "AV-02",
+            "badge": "Sürüm Sistemi Değişiyor!",
+            "title": "Koru ve diğer tüm Antic Valley uygulamaları için sürüm sistemi değişiyor.",
+            "summary": "Antic Valley'in geliştirdiği bütün uygulamalar için sürümler 'v1.0.0' gibi bir sürüm numarası yerine 'v26.1.8' gibi bir sürüm numarası ile yayınlanacak. Bu sürüm numaralarının daha anlaşılır olması için atılan adımdır.",
+            "category": "Resmi",
+            "publishedAt": "2026-11-18T12:00:00Z"
+        },
+        {
             "id": "av-01",
             "code": "AV-01",
             "badge": "Sinyal'lere Merhaba Diyin!",
