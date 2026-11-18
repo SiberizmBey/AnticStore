@@ -25,6 +25,7 @@
             "announcedAt": "11.01.2026",
             "releaseDate": "16.11.2026",
             "upcomingUpdateDate": "18.11.2026",
+            "catalog": "official",
             "comingSoon": true,
             "requirements": {
                 "os": ["windows"],
