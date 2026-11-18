@@ -30,8 +30,10 @@
                 "os": ["windows"],
                 "minOsVersion": "Windows 10 / 11 (64-bit)",
                 "arch": ["x64"],
+                "minRamGb": "",
+                "minDiskMb": "",
                 "runtimes": ["WebView2"],
-                "notes": "Opsiyonel ek not"
+                "notes": ""
             },
             "permissions": [
                 "network",
@@ -65,8 +67,10 @@
                 "os": ["windows"],
                 "minOsVersion": "Windows 10 / 11 (64-bit)",
                 "arch": ["x64"],
+                "minRamGb": "",
+                "minDiskMb": "",
                 "runtimes": ["WebView2"],
-                "notes": "Opsiyonel ek not"
+                "notes": ""
             },
             "permissions": [
                 "network",
@@ -98,8 +102,10 @@
                 "os": ["windows"],
                 "minOsVersion": "Windows 10 / 11 (64-bit)",
                 "arch": ["x64"],
+                "minRamGb": "",
+                "minDiskMb": "",
                 "runtimes": ["WebView2"],
-                "notes": "Opsiyonel ek not"
+                "notes": ""
             },
             "permissions": [
                 "network",
@@ -133,8 +139,10 @@
                 "os": ["windows"],
                 "minOsVersion": "Windows 10 / 11 (64-bit)",
                 "arch": ["x64"],
+                "minRamGb": "",
+                "minDiskMb": "",
                 "runtimes": ["WebView2"],
-                "notes": "Opsiyonel ek not"
+                "notes": ""
             },
             "permissions": [
                 "network",
