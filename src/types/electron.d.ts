@@ -49,6 +49,7 @@ export interface AnticStoreDesktopAPI {
   openDownloadsFolder: () => Promise<void>;
   getAutostartStatus: () => Promise<{ enabled: boolean; supported: boolean }>;
   setAutostartEnabled: (enabled: boolean) => Promise<{ enabled: boolean; supported: boolean }>;
+  showNotification: (payload: { title: string; body: string }) => Promise<{ shown: boolean }>;
   onTaskProgress: (callback: (progress: AppTaskProgress) => void) => () => void;
 }
 

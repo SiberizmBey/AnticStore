@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('anticStoreDesktop', {
   openDownloadsFolder: () => ipcRenderer.invoke('store:open-downloads'),
   getAutostartStatus: () => ipcRenderer.invoke('store:get-autostart'),
   setAutostartEnabled: (enabled) => ipcRenderer.invoke('store:set-autostart', enabled),
+  showNotification: (payload) => ipcRenderer.invoke('store:show-notification', payload),
   onTaskProgress: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('store:task-progress', listener);

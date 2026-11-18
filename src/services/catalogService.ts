@@ -467,26 +467,68 @@ function mapDirectEntryToStoreApp(
   };
 }
 
+function mergeCatalogMetadataWithLocal(
+  remote: RemoteCatalogManifest,
+  local: RemoteCatalogManifest
+): RemoteCatalogManifest {
+  const hasRemoteCatalogs = Array.isArray(remote.catalogs) && remote.catalogs.length > 0;
+  const localAppMap = new Map((local.apps || []).map((a) => [a.id, a]));
+  return {
+    ...remote,
+    catalogs: hasRemoteCatalogs ? remote.catalogs : local.catalogs,
+    apps: (remote.apps || []).map((app) => {
+      if (app.catalog) return app;
+      const localMatch = localAppMap.get(app.id);
+      return localMatch?.catalog ? { ...app, catalog: localMatch.catalog } : app;
+    }),
+  };
+}
+
 async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
+  const localManifest = bundledCatalog as unknown as RemoteCatalogManifest;
+
+  // In dev mode (Electron loading Vite/Express on localhost), read live /api/catalog/official first
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.protocol === 'http:' || window.location.protocol === 'https:')
+  ) {
+    try {
+      const res = await fetch('/api/catalog/official?refresh=1', { cache: 'no-store' });
+      if (res.ok) {
+        const localApiData = (await res.json()) as RemoteCatalogManifest;
+        if (localApiData && Array.isArray(localApiData.apps)) {
+          return localApiData;
+        }
+      }
+    } catch {
+      // Ignore if running without local Express server
+    }
+  }
+
   const desktop = window.anticStoreDesktop!;
   const ts = Date.now();
   const candidates = [
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/catalog.json?t=${ts}`,
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/master/catalog.json?t=${ts}`,
   ];
+  const localTime = Date.parse(localManifest.updatedAt || '') || 0;
 
   for (const url of candidates) {
     try {
       const data = await desktop.fetchJson<RemoteCatalogManifest>(url);
       if (data && Array.isArray(data.apps)) {
-        return data;
+        const remoteTime = Date.parse(data.updatedAt || '') || 0;
+        if (remoteTime > localTime) {
+          return mergeCatalogMetadataWithLocal(data, localManifest);
+        }
+        return localManifest;
       }
     } catch {
       // Try next candidate
     }
   }
 
-  return bundledCatalog as unknown as RemoteCatalogManifest;
+  return localManifest;
 }
 
 export async function syncOfficialCatalog(forceRefresh = false): Promise<{

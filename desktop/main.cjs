@@ -3,13 +3,40 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const os = require('node:os');
 const { spawn, execFile } = require('node:child_process');
-const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, safeStorage, shell } = require('electron');
 
 const STORE_APP_ID = 'com.anticvalley.koru';
 const LEGACY_STORE_APP_ID = 'com.anticvalley.store';
 const REGISTRY_FILE = () => path.join(app.getPath('userData'), 'installed-apps.json');
 const DOWNLOADS_DIR = () => path.join(app.getPath('userData'), 'downloads');
 const GITHUB_TOKEN_FILE = () => path.join(app.getPath('userData'), 'github-token.enc');
+
+app.setName('Koru');
+if (process.platform === 'win32') {
+  app.setAppUserModelId(STORE_APP_ID);
+}
+
+function resolveAppIconPath(preferIco = false) {
+  const baseDir = path.join(app.getAppPath(), app.isPackaged ? 'dist' : 'public', 'assets', 'img');
+  const candidates = preferIco
+    ? ['icon.ico', 'icon.png', 'koru.png']
+    : ['icon.png', 'icon.ico', 'koru.png'];
+  for (const file of candidates) {
+    const full = path.join(baseDir, file);
+    if (fs.existsSync(full)) return full;
+  }
+  return path.join(baseDir, 'icon.png');
+}
+
+function ensureWindowsAppUserModelRegistration() {
+  if (process.platform !== 'win32') return;
+  const regKey = `HKCU\\Software\\Classes\\AppUserModelId\\${STORE_APP_ID}`;
+  const iconPath = resolveAppIconPath(true);
+  execFile('reg.exe', ['add', regKey, '/v', 'DisplayName', '/t', 'REG_SZ', '/d', 'Koru', '/f'], () => {});
+  if (iconPath && fs.existsSync(iconPath)) {
+    execFile('reg.exe', ['add', regKey, '/v', 'IconUri', '/t', 'REG_SZ', '/d', iconPath, '/f'], () => {});
+  }
+}
 
 const activeDownloads = new Map();
 let cachedGitHubToken;
@@ -255,12 +282,15 @@ async function fetchJsonFromUrl(url, allowMissing = false) {
   const headers = {
     'User-Agent': 'Koru/1.0 (com.anticvalley.koru)',
     Accept: 'application/json',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    Pragma: 'no-cache',
   };
   if (parsed.hostname.toLowerCase() === 'api.github.com') {
     const token = await getGitHubToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   }
   const res = await fetch(parsed.toString(), {
+    cache: 'no-store',
     headers,
   });
   if (allowMissing && res.status === 404) return null;
@@ -800,14 +830,36 @@ ipcMain.handle('store:set-autostart', async (_event, enabled) => {
   return { enabled: Boolean(settings.openAtLogin), supported: true };
 });
 
+ipcMain.handle('store:show-notification', async (_event, payload) => {
+  try {
+    if (!Notification.isSupported()) {
+      return { shown: false };
+    }
+    const title = String(payload?.title || 'Koru');
+    const body = String(payload?.body || '');
+    const icon = resolveAppIconPath(false);
+    const toast = new Notification({
+      title,
+      body,
+      ...(icon && fs.existsSync(icon) ? { icon } : {}),
+    });
+    toast.on('click', () => {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win && !win.isDestroyed()) {
+        if (win.isMinimized()) win.restore();
+        win.show();
+        win.focus();
+      }
+    });
+    toast.show();
+    return { shown: true };
+  } catch {
+    return { shown: false };
+  }
+});
+
 async function createWindow() {
-  const iconPath = path.join(
-    app.getAppPath(),
-    app.isPackaged ? 'dist' : 'public',
-    'assets',
-    'img',
-    'icon.png'
-  );
+  const iconPath = resolveAppIconPath(false);
   const window = new BrowserWindow({
     width: 1320,
     height: 840,
@@ -837,10 +889,16 @@ async function createWindow() {
     return;
   }
 
+  try {
+    await window.webContents.session.clearCache();
+  } catch {
+    // Ignore cache clear failure
+  }
   await window.loadURL(process.env.VITE_DEV_SERVER_URL || 'http://127.0.0.1:3000');
 }
 
 app.whenReady().then(async () => {
+  ensureWindowsAppUserModelRegistration();
   try {
     await createWindow();
   } catch (error) {

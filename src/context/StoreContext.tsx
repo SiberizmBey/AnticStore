@@ -292,19 +292,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }, 5200);
       }
 
-      if (
-        payload.sendBrowserNotification &&
-        desktopNotificationsEnabledRef.current &&
-        typeof window !== 'undefined' &&
-        'Notification' in window &&
-        window.Notification.permission === 'granted'
-      ) {
-        try {
-          new window.Notification(payload.title, {
+      if (payload.sendBrowserNotification && desktopNotificationsEnabledRef.current) {
+        if (typeof window !== 'undefined' && window.anticStoreDesktop?.showNotification) {
+          void window.anticStoreDesktop.showNotification({
+            title: payload.title,
             body: payload.message,
           });
-        } catch {
-          // Ignore browser notification errors in restricted contexts
+        } else if (
+          typeof window !== 'undefined' &&
+          'Notification' in window &&
+          window.Notification.permission === 'granted'
+        ) {
+          try {
+            new window.Notification(payload.title, {
+              body: payload.message,
+            });
+          } catch {
+            // Ignore browser notification errors in restricted contexts
+          }
         }
       }
     },
@@ -369,11 +374,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sendTestNotification = useCallback(async () => {
-    let perm = readNotificationPermission();
-    if (perm === 'default') {
-      perm = await requestNotificationPermission();
-    } else {
-      setNotificationPermission(perm);
+    const isDesktop = Boolean(typeof window !== 'undefined' && window.anticStoreDesktop?.showNotification);
+    let perm: BrowserNotificationPermission = isDesktop ? 'granted' : readNotificationPermission();
+    if (!isDesktop) {
+      if (perm === 'default') {
+        perm = await requestNotificationPermission();
+      } else {
+        setNotificationPermission(perm);
+      }
     }
 
     const timeStr = new Date().toLocaleTimeString('tr-TR', {
@@ -386,7 +394,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       kind: 'release',
       title: 'Koru Test Bildirimi',
       message:
-        perm === 'granted'
+        isDesktop || perm === 'granted'
           ? `Bildirim kanalları aktif. Masaüstü ve uygulama içi uyarı test edildi (${timeStr}).`
           : `Uygulama içi test bildirimi gönderildi (${timeStr}). Masaüstü bildirim izni: ${perm === 'denied' ? 'Engelli' : 'Bekleniyor'}.`,
       showToast: true,
