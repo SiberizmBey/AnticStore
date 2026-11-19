@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Download,
   RefreshCw,
@@ -13,13 +13,16 @@ import {
   ShieldCheck,
   ShieldAlert,
   Clock,
+  Pause,
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
 import { AppIcon } from './AppIcon';
+import { AppHoverPreview } from './AppHoverPreview';
 import {
   checkInstalledMirrorStatus,
   formatBytes,
+  formatDownloadCount,
   formatSpeed,
   formatTurkishDate,
   isUpdateAvailable,
@@ -39,13 +42,21 @@ export function AppCard({ app, onSelect }: AppCardProps) {
     tasks,
     appErrors,
     platformInfo,
+    getAppChannel,
+    getChannelLatestRelease,
     installApp,
     updateApp,
     launchApp,
+    pauseTask,
+    resumeTask,
     cancelTask,
     isFollowingApp,
     toggleFollowApp,
   } = useStore();
+
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const hoverTimerRef = useRef<number | null>(null);
+  const [previewRect, setPreviewRect] = useState<DOMRect | null>(null);
 
   const installed = installedMap[app.id];
   const task = tasks[app.id];
@@ -53,8 +64,11 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   const isDownloadable = app.downloadable !== false;
   const isComingSoon = !isDownloadable || Boolean(app.comingSoon);
   const following = isFollowingApp(app.id);
-  const compatibility = evaluateCompatibility(app, platformInfo);
-  const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
+  const channel = getAppChannel(app.id);
+  const effectiveRelease = getChannelLatestRelease(app) || app.latestRelease;
+  const effectiveVersion = effectiveRelease?.version || app.latestVersion;
+  const compatibility = evaluateCompatibility(app, platformInfo, effectiveRelease);
+  const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, effectiveVersion));
   const isNew = Boolean(app.new);
   const mirrorStatus = checkInstalledMirrorStatus(
     installed?.version,
@@ -67,14 +81,59 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   const hasAccentSpotlight = !isUnofficialVersion && !isComingSoon && (hasUpdate || isNew);
   const hasAnySpotlight = hasRedSpotlight || hasAccentSpotlight;
   const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
-  const preferredAsset = app.latestRelease
-    ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
+  const preferredAsset = effectiveRelease
+    ? pickPreferredAsset(effectiveRelease.assets, platformInfo.platform)
     : null;
+  const totalDownloadsLabel =
+    typeof app.totalDownloads === 'number' && app.totalDownloads > 0
+      ? formatDownloadCount(app.totalDownloads)
+      : null;
+
+  const clearHoverPreview = () => {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setPreviewRect(null);
+  };
+
+  useEffect(() => {
+    const onScroll = () => clearHoverPreview();
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('scroll', onScroll, true);
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, []);
+
+  const scheduleHoverPreview = (target: EventTarget | null) => {
+    if (typeof window === 'undefined') return;
+    if (window.innerWidth < 768) return;
+    if (window.matchMedia && !window.matchMedia('(hover: hover)').matches) return;
+    if (target instanceof HTMLElement && target.closest('[data-no-preview="true"]')) {
+      clearHoverPreview();
+      return;
+    }
+    if (previewRect || hoverTimerRef.current !== null) return;
+    hoverTimerRef.current = window.setTimeout(() => {
+      hoverTimerRef.current = null;
+      if (cardRef.current) {
+        setPreviewRect(cardRef.current.getBoundingClientRect());
+      }
+    }, 260);
+  };
 
   const handlePrimaryAction = (e: React.MouseEvent) => {
     e.stopPropagation();
+    clearHoverPreview();
     if (task) {
-      void cancelTask(app.id);
+      if (task.phase === 'paused') {
+        void resumeTask(app.id);
+      } else {
+        void cancelTask(app.id);
+      }
       return;
     }
     if (isDownloadBlocked) {
@@ -100,6 +159,11 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target instanceof HTMLElement && e.target.closest('[data-no-preview="true"]')) {
+      clearHoverPreview();
+    } else if (!previewRect && hoverTimerRef.current === null) {
+      scheduleHoverPreview(e.target);
+    }
     if (!hasAnySpotlight) return;
     const rect = e.currentTarget.getBoundingClientRect();
     e.currentTarget.style.setProperty('--spot-x', `${e.clientX - rect.left}px`);
@@ -107,11 +171,19 @@ export function AppCard({ app, onSelect }: AppCardProps) {
   };
 
   return (
+    <>
     <motion.div
+      ref={cardRef}
       whileHover={{ y: -3 }}
       whileTap={{ scale: 0.99 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      onClick={() => onSelect(app)}
+      onClick={() => {
+        clearHoverPreview();
+        onSelect(app);
+      }}
+      onMouseEnter={(e) => scheduleHoverPreview(e.target)}
+      onMouseLeave={clearHoverPreview}
+      onMouseDown={clearHoverPreview}
       onMouseMove={handleMouseMove}
       className={`group relative overflow-hidden flex flex-col justify-between p-5 rounded-3xl bg-card border ${
         hasRedSpotlight
@@ -208,17 +280,46 @@ export function AppCard({ app, onSelect }: AppCardProps) {
         <div className="p-3 rounded-2xl bg-inner border border-subtle mb-3.5 space-y-2">
           <div className="flex items-center justify-between gap-2 text-xs">
             <span className="font-mono text-[11px] text-muted truncate">{app.id}</span>
-            <span className="font-mono font-bold text-xs text-primary tabular-nums shrink-0">
-              v{app.latestVersion}
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {channel === 'beta' && (
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 border border-amber-500/35 text-amber-300">
+                  Beta
+                </span>
+              )}
+              {channel === 'nightly' && (
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-500/15 border border-violet-500/35 text-violet-300">
+                  Nightly
+                </span>
+              )}
+              {channel === 'rc' && (
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-sky-500/15 border border-sky-500/35 text-sky-300">
+                  RC
+                </span>
+              )}
+              <span className="font-mono font-bold text-xs text-primary tabular-nums">
+                v{effectiveVersion}
+              </span>
+            </div>
           </div>
 
           {task ? (
             <div className="space-y-1.5 pt-1">
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="accent-text font-semibold truncate">{task.message}</span>
+              <div className="flex items-center justify-between text-[11px] gap-2">
+                <span
+                  className={`font-semibold truncate ${
+                    task.phase === 'paused' ? 'text-amber-400' : 'accent-text'
+                  }`}
+                >
+                  {task.message}
+                </span>
                 <span className="font-mono tabular-nums text-secondary shrink-0">
-                  {task.percent}%
+                  {task.phase === 'queued'
+                    ? 'Sırada'
+                    : task.phase === 'verifying'
+                    ? 'SHA-256'
+                    : task.phase === 'paused'
+                    ? `Duraklatıldı (${task.percent}%)`
+                    : `${task.percent}%`}
                 </span>
               </div>
               <div className="h-1.5 w-full rounded-full bg-card overflow-hidden">
@@ -226,7 +327,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
                   className="h-full rounded-full transition-all duration-150"
                   style={{
                     width: `${Math.max(4, task.percent)}%`,
-                    backgroundColor: 'var(--accent)',
+                    backgroundColor: task.phase === 'paused' ? '#f59e0b' : 'var(--accent)',
                   }}
                 />
               </div>
@@ -235,7 +336,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
                   <span>
                     {formatBytes(task.receivedBytes)} / {formatBytes(task.totalBytes)}
                   </span>
-                  <span>{formatSpeed(task.speedBps)}</span>
+                  <span>{task.phase === 'paused' ? 'Beklemede' : formatSpeed(task.speedBps)}</span>
                 </div>
               )}
             </div>
@@ -250,7 +351,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             </div>
           )}
 
-          {(app.announcedAt || app.releaseDate || compatibility) && (
+          {(app.announcedAt || app.releaseDate || totalDownloadsLabel || compatibility) && (
             <div className="pt-2 border-t border-subtle/60 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[10px] text-muted font-mono tabular-nums">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
                 {app.releaseDate ? (
@@ -258,6 +359,12 @@ export function AppCard({ app, onSelect }: AppCardProps) {
                 ) : app.announcedAt ? (
                   <span>Duyuru: {formatTurkishDate(app.announcedAt)}</span>
                 ) : null}
+                {totalDownloadsLabel && (
+                  <span className="inline-flex items-center gap-1 text-secondary" title="Toplam GitHub indirme sayısı">
+                    <Download className="w-2.5 h-2.5 accent-text shrink-0" />
+                    <span>{totalDownloadsLabel}</span>
+                  </span>
+                )}
               </div>
               <span
                 title={compatibility.summary}
@@ -317,7 +424,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
                 style={{ backgroundColor: 'var(--accent)' }}
                 aria-hidden="true"
               />
-              v{installed.version} → v{app.latestVersion}
+              v{installed.version} → v{effectiveVersion}
             </span>
           ) : installed ? (
             <span className="text-emerald-400 font-semibold flex items-center gap-1 tabular-nums">
@@ -343,7 +450,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div data-no-preview="true" className="flex items-center gap-1.5 shrink-0">
           {isComingSoon && (
             <button
               type="button"
@@ -363,6 +470,34 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             </button>
           )}
 
+          {task && (task.phase === 'downloading' || task.phase === 'queued') && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void pauseTask(app.id);
+              }}
+              title="Duraklat"
+              className="shrink-0 inline-flex items-center justify-center p-1.5 rounded-full bg-inner border border-subtle hover:bg-card-hover text-amber-400 cursor-pointer"
+            >
+              <Pause className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {task && task.phase === 'paused' && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void cancelTask(app.id);
+              }}
+              title="İptal Et"
+              className="shrink-0 inline-flex items-center justify-center p-1.5 rounded-full bg-inner border border-subtle hover:bg-card-hover text-secondary hover:text-red-400 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handlePrimaryAction}
@@ -370,6 +505,8 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${
               isDownloadBlocked
                 ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                : task && task.phase === 'paused'
+                ? 'btn-primary-koza hover:opacity-90 active:scale-[0.97] cursor-pointer'
                 : task
                 ? 'bg-inner border border-subtle text-secondary hover:text-primary cursor-pointer'
                 : isUnofficialVersion
@@ -380,10 +517,17 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             }`}
           >
             {task ? (
-              <>
-                <X className="w-3.5 h-3.5" />
-                <span>İptal</span>
-              </>
+              task.phase === 'paused' ? (
+                <>
+                  <Play className="w-3.5 h-3.5" />
+                  <span>Devam Et</span>
+                </>
+              ) : (
+                <>
+                  <X className="w-3.5 h-3.5" />
+                  <span>İptal</span>
+                </>
+              )
             ) : isDownloadBlocked ? (
               <>
                 <Ban className="w-3.5 h-3.5" />
@@ -414,5 +558,9 @@ export function AppCard({ app, onSelect }: AppCardProps) {
         </div>
       </div>
     </motion.div>
+    <AnimatePresence>
+      {previewRect && <AppHoverPreview app={app} anchorRect={previewRect} />}
+    </AnimatePresence>
+    </>
   );
 }

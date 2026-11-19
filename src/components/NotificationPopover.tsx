@@ -192,10 +192,11 @@ export function NotificationPopover({ onSelectAppById }: NotificationPopoverProp
                     key={item.id}
                     type="button"
                     onClick={() => handleNotificationClick(item)}
+                    style={!item.read ? { borderColor: 'var(--accent-border)' } : undefined}
                     className={`w-full text-left p-3 rounded-2xl border transition-colors cursor-pointer flex items-start gap-2.5 ${
                       item.read
-                        ? 'bg-inner/45 border-subtle/80 hover:bg-card-hover'
-                        : 'bg-card border-accent/40 hover:bg-card-hover'
+                        ? 'bg-inner/45 border-subtle hover:bg-card-hover'
+                        : 'bg-card border-subtle hover:bg-card-hover'
                     }`}
                   >
                     <div className="w-7 h-7 rounded-xl bg-inner border border-subtle flex items-center justify-center shrink-0 mt-0.5">

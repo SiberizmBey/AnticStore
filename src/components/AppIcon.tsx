@@ -17,7 +17,10 @@ export function AppIcon({
   className = 'w-12 h-12 rounded-2xl bg-inner border border-subtle flex items-center justify-center overflow-hidden shrink-0',
   imageClassName = 'w-full h-full object-contain',
 }: AppIconProps) {
-  const { src: imageSrc, failed, markFailed } = useCachedMedia(iconUrl);
+  const { src: imageSrc, failed, markFailed } = useCachedMedia(iconUrl, 0, {
+    maxDimension: 192,
+    immediateFallback: true,
+  });
   const initial = (name || 'A').trim().charAt(0).toUpperCase();
   const grayscaleFilterClass = grayscale ? 'app-icon-grayscale grayscale opacity-75' : '';
 
@@ -28,7 +31,7 @@ export function AppIcon({
           src={imageSrc}
           alt={`${name} simgesi`}
           className={`${imageClassName} ${grayscaleFilterClass}`.trim()}
-          decoding="sync"
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={markFailed}
         />

@@ -9,27 +9,83 @@ import { SettingsView } from './views/SettingsView';
 import { AppDetailView } from './views/AppDetailView';
 import { SignalsPopover } from './components/SignalsPopover';
 import { ToastContainer } from './components/ToastContainer';
+import { PrerequisitePromptModal } from './components/PrerequisitePromptModal';
 import { checkInstalledMirrorStatus, isUpdateAvailable } from './utils/semver';
-import type { StoreApp } from './types';
+import type { KoruDeepLinkTarget, StoreApp } from './types';
 
 function KoruShell() {
   const [currentTab, setCurrentTab] = useState<NavTab>('store');
   const [selectedApp, setSelectedApp] = useState<StoreApp | null>(null);
-  const { apps, installedMap } = useStore();
+  const [pendingDeepLink, setPendingDeepLink] = useState<KoruDeepLinkTarget | null>(null);
+  const { apps, installedMap, getChannelLatestRelease } = useStore();
   const spotlightRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const bridge = window.anticStoreDesktop;
+    if (!bridge) return;
+
+    void bridge.getPendingDeepLink().then((target) => {
+      if (target) setPendingDeepLink(target);
+    });
+
+    const unsubscribe = bridge.onDeepLink((target) => {
+      setPendingDeepLink(target);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!pendingDeepLink) return;
+    if (pendingDeepLink.action === 'installed') {
+      setSelectedApp(null);
+      setCurrentTab('installed');
+      setPendingDeepLink(null);
+      return;
+    }
+    if (pendingDeepLink.action === 'settings') {
+      setSelectedApp(null);
+      setCurrentTab('settings');
+      setPendingDeepLink(null);
+      return;
+    }
+    if (pendingDeepLink.action === 'store') {
+      setSelectedApp(null);
+      setCurrentTab('store');
+      setPendingDeepLink(null);
+      return;
+    }
+    if (pendingDeepLink.action === 'app' && pendingDeepLink.appId) {
+      if (apps.length === 0) return;
+      const targetId = pendingDeepLink.appId.toLowerCase();
+      const matched = apps.find((a) => a.id.toLowerCase() === targetId);
+      if (matched) {
+        setSelectedApp(matched);
+        setCurrentTab('store');
+      } else {
+        setSelectedApp(null);
+        setCurrentTab('store');
+      }
+      setPendingDeepLink(null);
+    }
+  }, [pendingDeepLink, apps]);
 
   const currentSelectedApp = selectedApp
     ? apps.find((app) => app.id === selectedApp.id) || selectedApp
     : null;
 
   const detailInstalled = currentSelectedApp ? installedMap[currentSelectedApp.id] : undefined;
+  const detailChannelRelease = currentSelectedApp
+    ? getChannelLatestRelease(currentSelectedApp) || currentSelectedApp.latestRelease
+    : null;
+  const detailEffectiveVersion =
+    detailChannelRelease?.version || currentSelectedApp?.latestVersion;
   const detailIsComingSoon = currentSelectedApp
     ? currentSelectedApp.downloadable === false || Boolean(currentSelectedApp.comingSoon)
     : false;
   const detailHasUpdate = Boolean(
     currentSelectedApp &&
       detailInstalled &&
-      isUpdateAvailable(detailInstalled.version, currentSelectedApp.latestVersion)
+      isUpdateAvailable(detailInstalled.version, detailEffectiveVersion)
   );
   const detailIsNew = Boolean(currentSelectedApp?.new) && !detailIsComingSoon;
   const detailMirrorStatus = currentSelectedApp
@@ -139,6 +195,7 @@ function KoruShell() {
 
       <ToastContainer onSelectAppById={handleSelectAppById} />
       <SignalsPopover onSelectAppById={handleSelectAppById} />
+      <PrerequisitePromptModal />
     </div>
   );
 }

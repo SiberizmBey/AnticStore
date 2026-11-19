@@ -22,15 +22,17 @@ import {
   Gamepad2,
   Clock,
   Headphones,
+  Pause,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
-import { AppCard } from '../components/AppCard';
+import { CatalogAppRow } from '../components/CatalogAppRow';
 import { AppIcon } from '../components/AppIcon';
 import { GitHubTokenCard } from '../components/GitHubTokenCard';
 import {
   checkInstalledMirrorStatus,
   formatBytes,
+  formatDownloadCount,
   formatTurkishDate,
   isUpdateAvailable,
   pickPreferredAsset,
@@ -75,10 +77,14 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
     platformInfo,
     githubTokenConfigured,
     githubTokenStatusLoaded,
+    getAppChannel,
+    getChannelLatestRelease,
     syncCatalog,
     installApp,
     updateApp,
     launchApp,
+    pauseTask,
+    resumeTask,
     cancelTask,
     isFollowingApp,
     toggleFollowApp,
@@ -111,9 +117,10 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
     () =>
       apps.filter((a) => {
         const inst = installedMap[a.id];
-        return Boolean(inst && isUpdateAvailable(inst.version, a.latestVersion));
+        const targetVer = getChannelLatestRelease(a)?.version || a.latestVersion;
+        return Boolean(inst && isUpdateAvailable(inst.version, targetVer));
       }).length,
-    [apps, installedMap]
+    [apps, installedMap, getChannelLatestRelease]
   );
 
   const upcomingAppsCount = useMemo(
@@ -124,7 +131,8 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
   const filteredApps = useMemo(() => {
     return apps.filter((app) => {
       const installed = installedMap[app.id];
-      const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, app.latestVersion));
+      const targetVer = getChannelLatestRelease(app)?.version || app.latestVersion;
+      const hasUpdate = Boolean(installed && isUpdateAvailable(installed.version, targetVer));
       const isComingSoon = app.downloadable === false || Boolean(app.comingSoon);
 
       if (statusFilter === 'installed' && !installed) return false;
@@ -145,7 +153,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
 
       return true;
     });
-  }, [apps, installedMap, statusFilter, searchQuery]);
+  }, [apps, installedMap, statusFilter, searchQuery, getChannelLatestRelease]);
 
   const groupedSections = useMemo(() => {
     const orderMap = new Map<string, CatalogDefinition>();
@@ -181,13 +189,18 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
   const spotlightTask = latestUpdatedApp ? tasks[latestUpdatedApp.id] : undefined;
   const spotlightDownloadable = latestUpdatedApp ? latestUpdatedApp.downloadable !== false : true;
   const spotlightFollowing = latestUpdatedApp ? isFollowingApp(latestUpdatedApp.id) : false;
+  const spotlightChannelRelease = latestUpdatedApp
+    ? getChannelLatestRelease(latestUpdatedApp) || latestUpdatedApp.latestRelease
+    : null;
+  const spotlightEffectiveVersion =
+    spotlightChannelRelease?.version || latestUpdatedApp?.latestVersion || '';
   const spotlightCompatibility = latestUpdatedApp
-    ? evaluateCompatibility(latestUpdatedApp, platformInfo)
+    ? evaluateCompatibility(latestUpdatedApp, platformInfo, spotlightChannelRelease)
     : null;
   const spotlightHasUpdate = Boolean(
     latestUpdatedApp &&
       spotlightInstalled &&
-      isUpdateAvailable(spotlightInstalled.version, latestUpdatedApp.latestVersion)
+      isUpdateAvailable(spotlightInstalled.version, spotlightEffectiveVersion)
   );
   const spotlightMirrorStatus = latestUpdatedApp
     ? checkInstalledMirrorStatus(
@@ -204,10 +217,9 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
       !spotlightTask &&
       (!spotlightInstalled || spotlightHasUpdate)
   );
-  const spotlightAsset =
-    latestUpdatedApp && latestUpdatedApp.latestRelease
-      ? pickPreferredAsset(latestUpdatedApp.latestRelease.assets, platformInfo.platform)
-      : null;
+  const spotlightAsset = spotlightChannelRelease
+    ? pickPreferredAsset(spotlightChannelRelease.assets, platformInfo.platform)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -226,53 +238,80 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
         </div>
 
         {apps.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 rounded-full font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
-                statusFilter === 'all'
-                  ? 'btn-primary-koza'
-                  : 'bg-card border-subtle text-secondary hover:bg-card-hover'
-              }`}
-            >
-              Tümü ({apps.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('installed')}
-              className={`px-3 py-1.5 rounded-full font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
-                statusFilter === 'installed'
-                  ? 'btn-primary-koza'
-                  : 'bg-card border-subtle text-secondary hover:bg-card-hover'
-              }`}
-            >
-              Kurulu ({installedCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('updates')}
-              className={`px-3 py-1.5 rounded-full font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
-                statusFilter === 'updates'
-                  ? 'btn-primary-koza'
-                  : 'bg-card border-subtle text-secondary hover:bg-card-hover'
-              }`}
-            >
-              Güncellemeler ({updatableCount})
-            </button>
-            {upcomingAppsCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter('upcoming')}
-                className={`px-3 py-1.5 rounded-full font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
-                  statusFilter === 'upcoming'
-                    ? 'btn-primary-koza'
-                    : 'bg-card border-subtle text-secondary hover:bg-card-hover'
-                }`}
-              >
-                Yakında ({upcomingAppsCount})
-              </button>
-            )}
+          <div
+            role="tablist"
+            aria-label="Uygulama Durum Filtresi"
+            className="koza-nav-capsule flex items-center gap-1 p-1.5 rounded-full bg-island border border-subtle shadow-sm overflow-x-auto no-scrollbar max-w-full"
+          >
+            {(
+              [
+                { id: 'all' as StatusFilter, label: 'Tümü', count: apps.length },
+                { id: 'installed' as StatusFilter, label: 'Kurulu', count: installedCount },
+                {
+                  id: 'updates' as StatusFilter,
+                  label: 'Güncellemeler',
+                  count: updatableCount,
+                  highlight: updatableCount > 0,
+                },
+                ...(upcomingAppsCount > 0
+                  ? [
+                      {
+                        id: 'upcoming' as StatusFilter,
+                        label: 'Yakında',
+                        count: upcomingAppsCount,
+                      },
+                    ]
+                  : []),
+              ] satisfies Array<{
+                id: StatusFilter;
+                label: string;
+                count: number;
+                highlight?: boolean;
+              }>
+            ).map((filterItem) => {
+              const isActive = statusFilter === filterItem.id;
+              return (
+                <button
+                  key={filterItem.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setStatusFilter(filterItem.id)}
+                  className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-colors duration-200 select-none whitespace-nowrap shrink-0 cursor-pointer outline-none ${
+                    isActive
+                      ? 'text-white font-bold'
+                      : 'text-secondary hover:text-primary hover:bg-card-hover/40'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="storeStatusFilterIndicator"
+                      className="absolute inset-0 rounded-full shadow-sm nav-indicator"
+                      style={{ backgroundColor: 'var(--accent)' }}
+                      transition={{
+                        type: 'spring',
+                        stiffness: 450,
+                        damping: 32,
+                      }}
+                    />
+                  )}
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <span>{filterItem.label}</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold border tabular-nums transition-colors ${
+                        isActive
+                          ? 'bg-black/20 text-white border-white/20'
+                          : filterItem.highlight
+                          ? 'accent-subtle accent-text accent-border'
+                          : 'bg-card text-secondary border-subtle'
+                      }`}
+                    >
+                      {filterItem.count}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </header>
@@ -376,7 +415,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted font-mono tabular-nums pt-1">
                   <span>{latestUpdatedApp.developer}</span>
                   <span aria-hidden="true">·</span>
-                  <span>v{latestUpdatedApp.latestVersion}</span>
+                  <span>v{spotlightEffectiveVersion}</span>
                   {spotlightAsset && spotlightAsset.size > 0 && (
                     <>
                       <span aria-hidden="true">·</span>
@@ -391,6 +430,16 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                       </span>
                     </>
                   )}
+                  {typeof latestUpdatedApp.totalDownloads === 'number' &&
+                    latestUpdatedApp.totalDownloads > 0 && (
+                      <>
+                        <span aria-hidden="true">·</span>
+                        <span className="inline-flex items-center gap-1 text-secondary">
+                          <Download className="w-3 h-3 accent-text" />
+                          <span>{formatDownloadCount(latestUpdatedApp.totalDownloads)} indirme</span>
+                        </span>
+                      </>
+                    )}
                   {spotlightCompatibility && (
                     <>
                       <span aria-hidden="true">·</span>
@@ -449,7 +498,11 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   className="px-5 py-2.5 rounded-full bg-inner border border-subtle text-xs font-bold text-primary flex items-center gap-2 cursor-pointer"
                 >
                   <X className="w-4 h-4" />
-                  <span className="tabular-nums">İptal ({spotlightTask.percent}%)</span>
+                  <span className="tabular-nums">
+                    {spotlightTask.phase === 'queued'
+                      ? 'Sırada · İptal'
+                      : `İptal (${spotlightTask.percent}%)`}
+                  </span>
                 </button>
               ) : spotlightDownloadBlocked ? (
                 <button
@@ -486,7 +539,7 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                   className="px-5 py-2.5 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 flex items-center gap-2 cursor-pointer whitespace-nowrap"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  <span>Güncelle (v{latestUpdatedApp.latestVersion})</span>
+                  <span>Güncelle (v{spotlightEffectiveVersion})</span>
                 </button>
               ) : spotlightInstalled ? (
                 <button
@@ -637,74 +690,73 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
             );
             const orderedTableApps = [...readyApps, ...upcomingApps];
 
+            const sectionHeaderLeft = showSectionHeader ? (
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl accent-subtle border accent-border accent-text flex items-center justify-center shrink-0">
+                  {getCatalogIcon(section.catalog.id, section.catalog.label, 'w-4 h-4')}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-primary truncate">
+                      {section.catalog.label}
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-card border border-subtle text-muted tabular-nums">
+                      {section.apps.length} uygulama
+                    </span>
+                  </div>
+                  {section.catalog.description && (
+                    <p className="text-[11px] text-muted truncate">
+                      {section.catalog.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : null;
+
+            const shouldAttachHeaderToReadyRow =
+              viewMode === 'grid' && readyApps.length > 0 && showSectionHeader;
+
             return (
               <section key={section.catalog.id} className="space-y-4">
-                {showSectionHeader && (
+                {showSectionHeader && !shouldAttachHeaderToReadyRow && (
                   <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-subtle">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-xl accent-subtle border accent-border accent-text flex items-center justify-center shrink-0">
-                        {getCatalogIcon(section.catalog.id, section.catalog.label, 'w-4 h-4')}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-sm font-bold text-primary truncate">
-                            {section.catalog.label}
-                          </h2>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-card border border-subtle text-muted tabular-nums">
-                            {section.apps.length} uygulama
-                          </span>
-                        </div>
-                        {section.catalog.description && (
-                          <p className="text-[11px] text-muted truncate">
-                            {section.catalog.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    {sectionHeaderLeft}
                   </div>
                 )}
 
                 {viewMode === 'grid' ? (
                   <div className="space-y-5">
                     {readyApps.length > 0 && (
-                      <motion.div
-                        layout
-                        className={
-                          readyApps.length <= 2
-                            ? 'grid grid-cols-1 md:grid-cols-2 gap-4'
-                            : 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4'
+                      <CatalogAppRow
+                        apps={readyApps}
+                        onSelectApp={onSelectApp}
+                        headerLeft={shouldAttachHeaderToReadyRow ? sectionHeaderLeft : undefined}
+                        headerClassName={
+                          shouldAttachHeaderToReadyRow ? 'pb-2 border-b border-subtle' : ''
                         }
-                      >
-                        {readyApps.map((app) => (
-                          <AppCard key={app.id} app={app} onSelect={onSelectApp} />
-                        ))}
-                      </motion.div>
+                      />
                     )}
 
                     {upcomingApps.length > 0 && (
-                      <div className="space-y-3">
-                        {statusFilter !== 'upcoming' && (
-                          <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-2xl border border-dashed border-amber-500/35 bg-amber-500/[0.04]">
-                            <div className="flex items-center gap-2 text-xs">
-                              <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                              <span className="font-bold text-amber-400">
-                                Yakında Yayınlanacaklar ({upcomingApps.length})
-                              </span>
-                              <span className="hidden sm:inline text-[11px] text-muted">
-                                · Henüz indirmeye açılmadı, bildirim açarak takibe alabilirsiniz
-                              </span>
+                      <CatalogAppRow
+                        apps={upcomingApps}
+                        onSelectApp={onSelectApp}
+                        headerLeft={
+                          statusFilter !== 'upcoming' ? (
+                            <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-2xl border border-dashed border-amber-500/35 bg-amber-500/[0.04]">
+                              <div className="flex items-center gap-2 text-xs">
+                                <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span className="font-bold text-amber-400">
+                                  Yakında Yayınlanacaklar ({upcomingApps.length})
+                                </span>
+                                <span className="hidden sm:inline text-[11px] text-muted">
+                                  · Henüz indirmeye açılmadı, bildirim açarak takibe alabilirsiniz
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        <motion.div
-                          layout
-                          className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-4"
-                        >
-                          {upcomingApps.map((app) => (
-                            <AppCard key={app.id} app={app} onSelect={onSelectApp} />
-                          ))}
-                        </motion.div>
-                      </div>
+                          ) : undefined
+                        }
+                      />
                     )}
                   </div>
                 ) : (
@@ -727,9 +779,12 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                             const isDownloadable = app.downloadable !== false;
                             const isComingSoon = !isDownloadable || Boolean(app.comingSoon);
                             const following = isFollowingApp(app.id);
-                            const compatibility = evaluateCompatibility(app, platformInfo);
+                            const channel = getAppChannel(app.id);
+                            const effectiveRelease = getChannelLatestRelease(app) || app.latestRelease;
+                            const effectiveVersion = effectiveRelease?.version || app.latestVersion;
+                            const compatibility = evaluateCompatibility(app, platformInfo, effectiveRelease);
                             const hasUpdate = Boolean(
-                              installed && isUpdateAvailable(installed.version, app.latestVersion)
+                              installed && isUpdateAvailable(installed.version, effectiveVersion)
                             );
                             const mirrorStatus = checkInstalledMirrorStatus(
                               installed?.version,
@@ -739,8 +794,8 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                             );
                             const isUnofficialVersion = mirrorStatus.isUnofficial;
                             const isDownloadBlocked = !isDownloadable && !task && (!installed || hasUpdate);
-                            const asset = app.latestRelease
-                              ? pickPreferredAsset(app.latestRelease.assets, platformInfo.platform)
+                            const asset = effectiveRelease
+                              ? pickPreferredAsset(effectiveRelease.assets, platformInfo.platform)
                               : null;
 
                             return (
@@ -821,7 +876,24 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                 </td>
                                 <td className="py-3 px-4 font-mono text-secondary">{app.id}</td>
                                 <td className="py-3 px-4 font-mono tabular-nums">
-                                  <span className="text-primary font-semibold">v{app.latestVersion}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-primary font-semibold">v{effectiveVersion}</span>
+                                    {channel === 'beta' && (
+                                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-sans font-bold bg-amber-500/15 border border-amber-500/35 text-amber-300">
+                                        Beta
+                                      </span>
+                                    )}
+                                    {channel === 'nightly' && (
+                                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-sans font-bold bg-violet-500/15 border border-violet-500/35 text-violet-300">
+                                        Nightly
+                                      </span>
+                                    )}
+                                    {channel === 'rc' && (
+                                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-sans font-bold bg-sky-500/15 border border-sky-500/35 text-sky-300">
+                                        RC
+                                      </span>
+                                    )}
+                                  </div>
                                   {installed && (
                                     <span
                                       className={`block text-[10px] ${
@@ -833,7 +905,12 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                   )}
                                 </td>
                                 <td className="py-3 px-4 font-mono tabular-nums text-muted">
-                                  {asset && asset.size > 0 ? formatBytes(asset.size) : '—'}
+                                  <span>{asset && asset.size > 0 ? formatBytes(asset.size) : '—'}</span>
+                                  {typeof app.totalDownloads === 'number' && app.totalDownloads > 0 && (
+                                    <span className="block text-[10px] text-secondary mt-0.5">
+                                      ↓ {formatDownloadCount(app.totalDownloads)}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                   <div className="inline-flex items-center gap-2">
@@ -858,12 +935,41 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                         <span>{following ? 'Takipte' : 'Bildirim Aç'}</span>
                                       </button>
                                     )}
+                                    {task && (task.phase === 'downloading' || task.phase === 'queued') && (
+                                      <button
+                                        type="button"
+                                        title="Duraklat"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void pauseTask(app.id);
+                                        }}
+                                        className="p-1.5 rounded-full bg-inner border border-subtle hover:bg-card-hover text-amber-400 cursor-pointer"
+                                      >
+                                        <Pause className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    {task && task.phase === 'paused' && (
+                                      <button
+                                        type="button"
+                                        title="İptal Et"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          void cancelTask(app.id);
+                                        }}
+                                        className="p-1.5 rounded-full bg-inner border border-subtle hover:bg-card-hover text-secondary hover:text-red-400 cursor-pointer"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
                                     <button
                                       type="button"
                                       disabled={isDownloadBlocked || (!asset && !installed && !task)}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (task) void cancelTask(app.id);
+                                        if (task) {
+                                          if (task.phase === 'paused') void resumeTask(app.id);
+                                          else void cancelTask(app.id);
+                                        }
                                         else if (isDownloadBlocked) return;
                                         else if (isUnofficialVersion && app.latestRelease)
                                           void installApp(app, { release: app.latestRelease, mode: 'reinstall' });
@@ -877,6 +983,8 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                       className={`px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap ${
                                         isDownloadBlocked
                                           ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
+                                          : task && task.phase === 'paused'
+                                          ? 'btn-primary-koza cursor-pointer'
                                           : isUnofficialVersion
                                           ? 'bg-red-600 hover:bg-red-500 border border-red-400/50 text-white cursor-pointer'
                                           : hasUpdate || !installed
@@ -885,7 +993,11 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
                                       }`}
                                     >
                                       {task ? (
-                                        `${task.percent}%`
+                                        task.phase === 'paused' ? (
+                                          'Devam Et'
+                                        ) : (
+                                          `${task.percent}% İptal`
+                                        )
                                       ) : isDownloadBlocked ? (
                                         <span className="inline-flex items-center gap-1">
                                           <Ban className="w-3 h-3" />

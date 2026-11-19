@@ -11,8 +11,9 @@ import type {
 } from '../types';
 import bundledCatalog from '../../catalog.json';
 import bundledSignals from '../../signals.json';
-import { cleanVersion, detectAssetMeta } from '../utils/semver';
+import { cleanVersion, detectAssetMeta, getReleaseChannelKind } from '../utils/semver';
 import { normalizePermissionsList } from '../utils/compatibility';
+import { resolveAppPrerequisites } from '../utils/prerequisites';
 
 export const OFFICIAL_STORE_REPO = 'SiberizmBey/AnticStore';
 
@@ -43,12 +44,16 @@ interface GitHubRepoBundle {
       size?: number;
       browser_download_url?: string;
       content_type?: string;
+      digest?: string | null;
+      download_count?: number;
     }>;
   }>;
   packageJson?: {
     name?: string;
     version?: string;
     description?: string;
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
     build?: {
       appId?: string;
       productName?: string;
@@ -248,6 +253,42 @@ function resolveAppCatalog(
   };
 }
 
+function extractSha256FromDigest(digest?: string | null): string | undefined {
+  if (!digest || typeof digest !== 'string') return undefined;
+  const match = digest.trim().match(/^sha256:([a-f0-9]{64})$/i);
+  return match ? match[1].toLowerCase() : undefined;
+}
+
+function parseSha256MapFromNotes(notes: string): { byName: Map<string, string>; fallback?: string } {
+  const byName = new Map<string, string>();
+  const allHashes: string[] = [];
+  for (const line of String(notes || '').split(/\r?\n/)) {
+    const hashMatch = line.match(/\b([a-fA-F0-9]{64})\b/);
+    if (!hashMatch) continue;
+    const hash = hashMatch[1].toLowerCase();
+    allHashes.push(hash);
+    const fileMatch = line.match(/([A-Za-z0-9._-]+\.(?:exe|msi|appimage|deb|dmg|pkg|zip))/i);
+    if (fileMatch) {
+      byName.set(fileMatch[1].toLowerCase(), hash);
+    }
+  }
+  return {
+    byName,
+    fallback: allHashes.length === 1 ? allHashes[0] : undefined,
+  };
+}
+
+function isChecksumAssetName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower.endsWith('.sha256') ||
+    lower.endsWith('.sha256sum') ||
+    lower === 'checksums.txt' ||
+    lower === 'sha256sums' ||
+    lower === 'sha256sums.txt'
+  );
+}
+
 function mapBundleToStoreApp(
   bundle: GitHubRepoBundle,
   sourceLabel: string,
@@ -265,33 +306,75 @@ function mapBundleToStoreApp(
     .filter((r) => !r.draft)
     .map((r) => {
       const tag = r.tag_name || r.name || 'v0.0.0';
-      const assets: StoreAsset[] = (r.assets || [])
-        .filter((a) => Boolean(a.browser_download_url && a.name))
-        .map((a) => {
-          const meta = detectAssetMeta(a.name!);
-          return {
-            name: a.name!,
-            size: a.size || 0,
-            downloadUrl: a.browser_download_url!,
-            contentType: a.content_type,
-            platform: meta.platform,
-            installerType: meta.installerType,
-          };
+      const notes = (r.body || '').trim();
+      const parsedBodyHashes = parseSha256MapFromNotes(notes);
+      const rawAssets = (r.assets || []).filter((a) => Boolean(a.browser_download_url && a.name));
+
+      const checksumFiles = rawAssets.filter((a) => isChecksumAssetName(a.name!));
+      const sharedChecksumsFile = checksumFiles.find((a) => {
+        const lower = a.name!.toLowerCase();
+        return lower === 'checksums.txt' || lower === 'sha256sums' || lower === 'sha256sums.txt';
+      });
+
+      const installerAssets = rawAssets.filter((a) => !isChecksumAssetName(a.name!));
+      const assets: StoreAsset[] = installerAssets.map((a) => {
+        const assetName = a.name!;
+        const lowerName = assetName.toLowerCase();
+        const meta = detectAssetMeta(assetName);
+        const exactChecksumFile = checksumFiles.find((c) => {
+          const cLower = c.name!.toLowerCase();
+          return cLower === `${lowerName}.sha256` || cLower === `${lowerName}.sha256sum`;
         });
+        const inlineSha256 =
+          extractSha256FromDigest(a.digest) ||
+          parsedBodyHashes.byName.get(lowerName) ||
+          (installerAssets.length === 1 ? parsedBodyHashes.fallback : undefined);
+
+        return {
+          name: assetName,
+          size: a.size || 0,
+          downloadUrl: a.browser_download_url!,
+          contentType: a.content_type,
+          platform: meta.platform,
+          installerType: meta.installerType,
+          sha256: inlineSha256,
+          checksumUrl: (exactChecksumFile || sharedChecksumsFile)?.browser_download_url,
+          downloadCount:
+            typeof a.download_count === 'number' && Number.isFinite(a.download_count) && a.download_count >= 0
+              ? a.download_count
+              : undefined,
+        };
+      });
+
+      const hasReleaseDownloadCounts = assets.some((a) => typeof a.downloadCount === 'number');
+      const releaseDownloads = hasReleaseDownloadCounts
+        ? assets.reduce((sum, a) => sum + (a.downloadCount || 0), 0)
+        : undefined;
 
       return {
         tag,
         version: cleanVersion(r.name || tag),
         name: r.name || tag,
-        notes: (r.body || '').trim(),
+        notes,
         publishedAt: r.published_at || '',
         prerelease: Boolean(r.prerelease),
         htmlUrl: r.html_url,
+        downloadCount: releaseDownloads,
         assets,
       };
     });
 
-  const latestRelease = releases.find((r) => !r.prerelease) || releases[0] || null;
+  const hasAnyDownloadCount = releases.some((r) => typeof r.downloadCount === 'number');
+  const totalDownloads = hasAnyDownloadCount
+    ? releases.reduce((sum, r) => sum + (r.downloadCount || 0), 0)
+    : undefined;
+
+  const latestRelease =
+    releases.find((r) => getReleaseChannelKind(r) === 'stable' && !r.prerelease) ||
+    releases.find((r) => getReleaseChannelKind(r) === 'stable') ||
+    releases.find((r) => !r.prerelease) ||
+    releases[0] ||
+    null;
   const appId =
     override?.id ||
     manifest.id ||
@@ -357,6 +440,33 @@ function mapBundleToStoreApp(
   const upcomingUpdateDate = override?.upcomingUpdateDate || manifest.upcomingUpdateDate;
   const requirements = override?.requirements || manifest.requirements;
   const permissions = normalizePermissionsList(override?.permissions || manifest.permissions);
+  const prerequisites = resolveAppPrerequisites({
+    id: appId,
+    prerequisites: (override?.prerequisites || manifest.prerequisites) as never,
+    requirements,
+  });
+
+  const pkgDepNames = Object.keys({
+    ...(pkg.dependencies || {}),
+    ...(pkg.devDependencies || {}),
+  }).map((k) => k.toLowerCase());
+  const runtimeHints = new Set<string>();
+  if (pkgDepNames.some((d) => d === 'electron' || d.startsWith('electron-'))) {
+    runtimeHints.add('electron');
+  }
+  if (pkgDepNames.some((d) => d.includes('tauri'))) {
+    runtimeHints.add('tauri');
+    runtimeHints.add('webview2');
+  }
+  if (
+    requirements?.runtimes?.some((r) => r.toLowerCase().includes('webview2')) ||
+    pkgDepNames.some((d) => d.includes('webview2'))
+  ) {
+    runtimeHints.add('webview2');
+  }
+  if (pkgDepNames.some((d) => d.includes('discord-rpc') || d.includes('audio') || d.includes('naudiodon'))) {
+    runtimeHints.add('audio-dsp');
+  }
 
   return {
     id: appId,
@@ -376,6 +486,7 @@ function mapBundleToStoreApp(
     repoFullName: fullName,
     repoUrl: repoInfo.html_url || `https://github.com/${fullName}`,
     stars: repoInfo.stargazers_count,
+    totalDownloads,
     featured: Boolean(override?.featured || manifest.featured),
     new: Boolean(override?.new ?? manifest.new),
     downloadable,
@@ -385,6 +496,8 @@ function mapBundleToStoreApp(
     upcomingUpdateDate: upcomingUpdateDate || undefined,
     requirements,
     permissions: permissions.length > 0 ? permissions : undefined,
+    prerequisites: prerequisites.length > 0 ? prerequisites : undefined,
+    runtimeHints: runtimeHints.size > 0 ? Array.from(runtimeHints) : undefined,
     requirementsInferred: !requirements,
     permissionsInferred: permissions.length === 0,
     tags:
@@ -423,6 +536,10 @@ function mapDirectEntryToStoreApp(
             downloadUrl: entry.downloadUrl,
             platform: entry.platform || meta.platform,
             installerType: meta.installerType,
+            sha256:
+              typeof entry.sha256 === 'string' && /^[a-f0-9]{64}$/i.test(entry.sha256.trim())
+                ? entry.sha256.trim().toLowerCase()
+                : undefined,
           },
         ],
       }
@@ -430,6 +547,11 @@ function mapDirectEntryToStoreApp(
 
   const directDownloadable = parseDownloadableFlag(entry.downloadable) !== false;
   const directPermissions = normalizePermissionsList(entry.permissions);
+  const directPrerequisites = resolveAppPrerequisites({
+    id: entry.id,
+    prerequisites: entry.prerequisites as never,
+    requirements: entry.requirements,
+  });
   const { catalogId, catalogLabel } = resolveAppCatalog(entry.catalog, catalogDefsMap);
 
   return {
@@ -455,6 +577,7 @@ function mapDirectEntryToStoreApp(
     upcomingUpdateDate: entry.upcomingUpdateDate || undefined,
     requirements: entry.requirements,
     permissions: directPermissions.length > 0 ? directPermissions : undefined,
+    prerequisites: directPrerequisites.length > 0 ? directPrerequisites : undefined,
     requirementsInferred: !entry.requirements,
     permissionsInferred: directPermissions.length === 0,
     tags: entry.tags || ['Doğrudan Paket'],
@@ -477,9 +600,16 @@ function mergeCatalogMetadataWithLocal(
     ...remote,
     catalogs: hasRemoteCatalogs ? remote.catalogs : local.catalogs,
     apps: (remote.apps || []).map((app) => {
-      if (app.catalog) return app;
       const localMatch = localAppMap.get(app.id);
-      return localMatch?.catalog ? { ...app, catalog: localMatch.catalog } : app;
+      if (!localMatch) return app;
+      return {
+        ...app,
+        catalog: app.catalog || localMatch.catalog,
+        prerequisites:
+          Array.isArray(app.prerequisites) && app.prerequisites.length > 0
+            ? app.prerequisites
+            : localMatch.prerequisites,
+      };
     }),
   };
 }

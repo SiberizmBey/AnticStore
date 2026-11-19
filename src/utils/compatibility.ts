@@ -4,13 +4,17 @@ import type {
   PlatformInfo,
   PlatformKind,
   StoreApp,
+  StoreAsset,
+  StoreRelease,
 } from '../types';
+import { formatBytes, pickPreferredAsset } from './semver';
 
 export interface DetectedSystemProfile {
   os: PlatformKind;
   osLabel: string;
   arch: string;
   ramGb?: number;
+  freeDiskGb?: number;
   isDesktop: boolean;
 }
 
@@ -27,6 +31,16 @@ export interface CompatibilityReport {
   }>;
 }
 
+function detectWindowsDisplayLabel(osRelease?: string): string {
+  if (!osRelease) return 'Windows';
+  const parts = osRelease.split('.').map((n) => parseInt(n, 10));
+  if (parts.length >= 3 && parts[0] === 10 && parts[2] >= 22000) {
+    return 'Windows 11';
+  }
+  if (parts[0] === 10) return 'Windows 10';
+  return 'Windows';
+}
+
 export function detectUserSystemProfile(platformInfo: PlatformInfo): DetectedSystemProfile {
   const nav = typeof navigator !== 'undefined' ? navigator : undefined;
   const ua = nav?.userAgent?.toLowerCase() || '';
@@ -41,7 +55,7 @@ export function detectUserSystemProfile(platformInfo: PlatformInfo): DetectedSys
 
   if (platformInfo.platform === 'win32') {
     os = 'windows';
-    osLabel = 'Windows';
+    osLabel = detectWindowsDisplayLabel(platformInfo.osRelease);
   } else if (platformInfo.platform === 'darwin') {
     os = 'macos';
     osLabel = 'macOS';
@@ -71,13 +85,24 @@ export function detectUserSystemProfile(platformInfo: PlatformInfo): DetectedSys
   }
 
   const deviceMemory = (nav as Navigator & { deviceMemory?: number } | undefined)?.deviceMemory;
-  const ramGb = typeof deviceMemory === 'number' && Number.isFinite(deviceMemory) ? deviceMemory : undefined;
+  const ramGb =
+    typeof platformInfo.totalRamGb === 'number' && Number.isFinite(platformInfo.totalRamGb)
+      ? platformInfo.totalRamGb
+      : typeof deviceMemory === 'number' && Number.isFinite(deviceMemory)
+      ? deviceMemory
+      : undefined;
+
+  const freeDiskGb =
+    typeof platformInfo.freeDiskGb === 'number' && Number.isFinite(platformInfo.freeDiskGb)
+      ? platformInfo.freeDiskGb
+      : undefined;
 
   return {
     os,
     osLabel,
     arch,
     ramGb,
+    freeDiskGb,
     isDesktop: platformInfo.isDesktop,
   };
 }
@@ -176,50 +201,207 @@ export function normalizePermissionsList(
     .filter((p): p is AppPermissionItem => Boolean(p));
 }
 
-export function inferAppRequirements(app: StoreApp): {
+function cleanPositiveNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? value : undefined;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function roundSmartDiskMb(rawMb: number): number {
+  if (rawMb < 200) return Math.max(60, Math.ceil(rawMb / 10) * 10);
+  if (rawMb < 1024) return Math.ceil(rawMb / 25) * 25;
+  return Math.ceil(rawMb / 50) * 50;
+}
+
+function pickPrimaryAssetForInference(
+  app: StoreApp,
+  selectedRelease?: StoreRelease | null,
+  platform: 'win32' | 'linux' | 'darwin' | 'web' = 'win32'
+): StoreAsset | null {
+  const assets = selectedRelease?.assets || app.latestRelease?.assets || [];
+  if (assets.length === 0) return null;
+  return pickPreferredAsset(assets, platform) || assets[0];
+}
+
+export function inferAppRequirements(
+  app: StoreApp,
+  selectedRelease?: StoreRelease | null,
+  preferredPlatform: 'win32' | 'linux' | 'darwin' | 'web' = 'win32'
+): {
   requirements: AppRequirements;
   inferred: boolean;
+  installerBytes: number;
 } {
-  if (app.requirements && Object.keys(app.requirements).length > 0) {
-    return { requirements: app.requirements, inferred: Boolean(app.requirementsInferred) };
-  }
+  const explicit = app.requirements || {};
+  const assets = selectedRelease?.assets || app.latestRelease?.assets || [];
+  const primaryAsset = pickPrimaryAssetForInference(app, selectedRelease, preferredPlatform);
+  const largestAssetSize = assets.reduce((max, asset) => Math.max(max, asset.size || 0), 0);
+  const installerBytes = primaryAsset?.size || largestAssetSize || 0;
 
   const assetPlatforms = Array.from(
     new Set(
-      (app.latestRelease?.assets || [])
+      assets
         .map((a) => a.platform)
         .filter((p): p is PlatformKind => p !== 'universal')
     )
   );
 
-  const tagPlatforms: PlatformKind[] = [];
-  const tagText = `${app.tags.join(' ')} ${app.summary}`.toLowerCase();
-  if (tagText.includes('windows')) tagPlatforms.push('windows');
-  if (tagText.includes('macos') || tagText.includes('mac')) tagPlatforms.push('macos');
-  if (tagText.includes('linux')) tagPlatforms.push('linux');
+  const hints = (app.runtimeHints || []).map((h) => h.toLowerCase());
+  const haystack = `${app.name} ${app.category} ${app.summary} ${app.description} ${app.tags.join(' ')} ${hints.join(' ')}`.toLowerCase();
 
-  const osList: PlatformKind[] =
+  const tagPlatforms: PlatformKind[] = [];
+  if (haystack.includes('windows')) tagPlatforms.push('windows');
+  if (haystack.includes('macos') || haystack.includes('mac')) tagPlatforms.push('macos');
+  if (haystack.includes('linux')) tagPlatforms.push('linux');
+
+  const explicitOs =
+    Array.isArray(explicit.os) && explicit.os.length > 0 ? explicit.os : undefined;
+  const inferredOs: PlatformKind[] =
     assetPlatforms.length > 0
       ? assetPlatforms
       : tagPlatforms.length > 0
       ? tagPlatforms
       : ['windows'];
+  const osList = explicitOs || inferredOs;
 
-  const largestAssetSize = (app.latestRelease?.assets || []).reduce(
-    (max, asset) => Math.max(max, asset.size || 0),
-    0
+  // Smart architecture inference from asset filenames
+  const explicitArch =
+    Array.isArray(explicit.arch) && explicit.arch.length > 0 ? explicit.arch : undefined;
+  const detectedArchs = new Set<string>();
+  for (const a of assets) {
+    const n = a.name.toLowerCase();
+    if (/arm64|aarch64/.test(n)) detectedArchs.add('arm64');
+    if (/x64|amd64|x86_64|win64/.test(n)) detectedArchs.add('x64');
+    if (/(?:ia32|x86(?!_64)|win32)/.test(n) && !/x64|amd64|x86_64/.test(n)) detectedArchs.add('x86');
+  }
+  const archList =
+    explicitArch || (detectedArchs.size > 0 ? Array.from(detectedArchs) : ['x64']);
+
+  // Smart runtime detection
+  const explicitRuntimes =
+    Array.isArray(explicit.runtimes) && explicit.runtimes.length > 0 ? explicit.runtimes : undefined;
+  const isElectronStack =
+    hints.includes('electron') || haystack.includes('electron') || installerBytes >= 65 * 1024 * 1024;
+  const isWebView2Stack =
+    hints.includes('webview2') ||
+    (explicitRuntimes?.some((r) => r.toLowerCase().includes('webview2')) ?? false) ||
+    haystack.includes('webview2') ||
+    haystack.includes('tauri');
+  const isErpOrHeavyWorkstation = /(erp|crm|kurumsal|yönetim|fabrika|veritabanı|postgresql|database)/.test(
+    haystack
   );
-  const estimatedDiskMb =
-    largestAssetSize > 0 ? Math.max(120, Math.ceil((largestAssetSize / (1024 * 1024)) * 2.4)) : 250;
+  const isAudioDsp = /(ses|sound|audio|soundpad|dsp|rpc|discord|oynatıcı)/.test(haystack);
+
+  const inferredRuntimes: string[] = [];
+  if (osList.includes('windows')) {
+    if (isWebView2Stack) inferredRuntimes.push('WebView2');
+    if (hints.includes('dotnet') || haystack.includes('.net')) inferredRuntimes.push('.NET Desktop Runtime');
+    if (hints.includes('vcredist') || isAudioDsp) inferredRuntimes.push('VC++ Redistributable');
+  }
+  const prerequisiteRuntimes = Array.isArray(app.prerequisites)
+    ? app.prerequisites.map((p) => p.name).filter(Boolean)
+    : [];
+  const mergedRuntimes = Array.from(
+    new Set([
+      ...(explicitRuntimes || inferredRuntimes),
+      ...prerequisiteRuntimes,
+    ])
+  );
+  const runtimes = mergedRuntimes.length > 0 ? mergedRuntimes : undefined;
+
+  // Smart unpacked disk estimation (MB)
+  const explicitDiskMb = cleanPositiveNumber(explicit.minDiskMb);
+  const installerMb = installerBytes > 0 ? installerBytes / (1024 * 1024) : 0;
+  let estimatedDiskMb: number;
+  if (installerMb > 0) {
+    const instType = primaryAsset?.installerType || 'exe';
+    let multiplier = 2.4;
+    let overheadMb = 60;
+    if (instType === 'appimage') {
+      multiplier = 1.2;
+      overheadMb = 80;
+    } else if (instType === 'zip') {
+      multiplier = 1.9;
+      overheadMb = 40;
+    } else if (instType === 'msi' || instType === 'nsis' || instType === 'exe') {
+      multiplier = isElectronStack ? 2.65 : 2.25;
+      overheadMb = isErpOrHeavyWorkstation ? 150 : 80;
+    } else if (instType === 'dmg' || instType === 'deb') {
+      multiplier = 2.3;
+      overheadMb = 75;
+    }
+    estimatedDiskMb = roundSmartDiskMb(installerMb * multiplier + overheadMb);
+  } else {
+    if (isErpOrHeavyWorkstation || isElectronStack) {
+      estimatedDiskMb = 350;
+    } else if (isAudioDsp) {
+      estimatedDiskMb = 220;
+    } else if (isWebView2Stack) {
+      estimatedDiskMb = 160;
+    } else {
+      estimatedDiskMb = 200;
+    }
+  }
+  const minDiskMb = explicitDiskMb || estimatedDiskMb;
+
+  // Smart RAM estimation (GB)
+  const explicitRamGb = cleanPositiveNumber(explicit.minRamGb);
+  let estimatedRamGb = 2;
+  if (isErpOrHeavyWorkstation || (isElectronStack && installerMb >= 85)) {
+    estimatedRamGb = 4;
+  } else if (installerMb > 0 && installerMb < 25 && !isElectronStack && !isWebView2Stack) {
+    estimatedRamGb = 1;
+  } else if (isWebView2Stack || isAudioDsp || isElectronStack) {
+    estimatedRamGb = 2;
+  }
+  const minRamGb = explicitRamGb || estimatedRamGb;
+
+  // Smart minimum OS version string
+  const explicitMinOs =
+    typeof explicit.minOsVersion === 'string' && explicit.minOsVersion.trim()
+      ? explicit.minOsVersion.trim()
+      : undefined;
+  let inferredMinOs: string | undefined;
+  if (!explicitMinOs) {
+    const archTag = archList.includes('arm64') && !archList.includes('x64') ? 'ARM64' : '64-bit';
+    if (osList.includes('windows')) {
+      inferredMinOs = isWebView2Stack
+        ? `Windows 10 (1803+) / Windows 11 (${archTag})`
+        : `Windows 10 / 11 (${archTag})`;
+    } else if (osList.includes('macos')) {
+      inferredMinOs = 'macOS 12 Monterey ve üzeri';
+    } else if (osList.includes('linux')) {
+      inferredMinOs = 'Ubuntu 20.04+ / Debian 11+ (64-bit)';
+    }
+  }
+  const minOsVersion = explicitMinOs || inferredMinOs;
+
+  const anyInferred =
+    !explicitOs ||
+    !explicitArch ||
+    !explicitRamGb ||
+    !explicitDiskMb ||
+    !explicitMinOs ||
+    Boolean(app.requirementsInferred);
 
   return {
-    inferred: true,
+    inferred: anyInferred,
+    installerBytes,
     requirements: {
       os: osList,
-      minOsVersion: osList.includes('windows') ? 'Windows 10 / 11 (64-bit)' : undefined,
-      arch: ['x64'],
-      minRamGb: 2,
-      minDiskMb: estimatedDiskMb,
+      minOsVersion,
+      arch: archList,
+      minRamGb,
+      minDiskMb,
+      runtimes,
+      notes: typeof explicit.notes === 'string' && explicit.notes.trim() ? explicit.notes.trim() : undefined,
     },
   };
 }
@@ -277,10 +459,15 @@ export function inferAppPermissions(app: StoreApp): {
 
 export function evaluateCompatibility(
   app: StoreApp,
-  platformInfo: PlatformInfo
+  platformInfo: PlatformInfo,
+  selectedRelease?: StoreRelease | null
 ): CompatibilityReport {
   const user = detectUserSystemProfile(platformInfo);
-  const { requirements } = inferAppRequirements(app);
+  const { requirements, installerBytes } = inferAppRequirements(
+    app,
+    selectedRelease,
+    platformInfo.platform
+  );
 
   const supportedOs: PlatformKind[] =
     requirements.os && requirements.os.length > 0 ? requirements.os : ['windows'];
@@ -293,6 +480,10 @@ export function evaluateCompatibility(
   const ramCompatible =
     !requirements.minRamGb || !user.ramGb || user.ramGb >= requirements.minRamGb;
 
+  const minDiskGb = requirements.minDiskMb ? requirements.minDiskMb / 1024 : 0;
+  const diskCompatible =
+    !requirements.minDiskMb || typeof user.freeDiskGb !== 'number' || user.freeDiskGb >= minDiskGb;
+
   const checks: CompatibilityReport['checks'] = [
     {
       label: 'İşletim Sistemi',
@@ -304,26 +495,39 @@ export function evaluateCompatibility(
       value: supportedArch.join(' / '),
       ok: archCompatible,
     },
+    {
+      label: 'İndirme Boyutu',
+      value: installerBytes > 0 ? formatBytes(installerBytes) : 'Yayınlanınca belirlenir',
+      ok: true,
+    },
+    {
+      label: 'Depolama',
+      value: requirements.minDiskMb
+        ? requirements.minDiskMb >= 1024
+          ? `En az ${(requirements.minDiskMb / 1024).toFixed(1)} GB`
+          : `En az ${requirements.minDiskMb} MB`
+        : '—',
+      ok: diskCompatible,
+    },
+    {
+      label: 'Bellek (RAM)',
+      value: requirements.minRamGb ? `En az ${requirements.minRamGb} GB` : '—',
+      ok: ramCompatible,
+    },
+    {
+      label: 'Minimum Sürüm',
+      value: requirements.minOsVersion || 'Windows 10 / 11',
+      ok: osCompatible,
+    },
   ];
 
-  if (requirements.minRamGb) {
-    checks.push({
-      label: 'Bellek (RAM)',
-      value: `En az ${requirements.minRamGb} GB`,
-      ok: ramCompatible,
-    });
-  }
-
-  if (requirements.minDiskMb) {
-    checks.push({
-      label: 'Depolama',
-      value:
-        requirements.minDiskMb >= 1024
-          ? `${(requirements.minDiskMb / 1024).toFixed(1)} GB`
-          : `${requirements.minDiskMb} MB`,
-      ok: true,
-    });
-  }
+  const userSpecLabel = [
+    user.osLabel,
+    user.arch,
+    user.ramGb ? `${user.ramGb} GB RAM` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   if (!osCompatible) {
     return {
@@ -334,12 +538,14 @@ export function evaluateCompatibility(
     };
   }
 
-  if (!archCompatible || !ramCompatible) {
+  if (!archCompatible || !ramCompatible || !diskCompatible) {
     return {
       status: 'partial',
       badgeLabel: 'Kısmi Uyum',
       summary: !ramCompatible
-        ? `Cihaz belleği önerilen ${requirements.minRamGb} GB sınırının altında görünüyor.`
+        ? `Cihaz belleği (${user.ramGb} GB) önerilen ${requirements.minRamGb} GB RAM sınırının altında.`
+        : !diskCompatible
+        ? `Kullanılabilir disk alanı (${user.freeDiskGb} GB) gereken alanın altında olabilir.`
         : `Sistem mimariniz (${user.arch}) önerilen mimariden (${supportedArch.join('/')}) farklı.`,
       checks,
     };
@@ -348,7 +554,7 @@ export function evaluateCompatibility(
   return {
     status: 'compatible',
     badgeLabel: `${user.osLabel} ile Uyumlu`,
-    summary: `Sisteminiz (${user.osLabel} · ${user.arch}) tüm gereksinimleri karşılıyor.`,
+    summary: `Sisteminiz (${userSpecLabel}) tüm gereksinimleri karşılıyor.`,
     checks,
   };
 }

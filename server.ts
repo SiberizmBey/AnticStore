@@ -29,7 +29,95 @@ interface MediaCacheEntry {
 const mediaCache = new Map<string, MediaCacheEntry>();
 const MEDIA_REVALIDATE_MS = 5 * 60_000;
 const MAX_MEDIA_CACHE_ENTRIES = 120;
-const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
+const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
+
+function sniffImageMimeType(
+  buffer: Buffer,
+  rawUrl: string,
+  declaredType?: string | null
+): string | null {
+  if (buffer.byteLength === 0) return null;
+
+  if (
+    buffer.byteLength >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+
+  if (
+    buffer.byteLength >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return 'image/jpeg';
+  }
+
+  if (
+    buffer.byteLength >= 6 &&
+    buffer[0] === 0x47 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x38
+  ) {
+    return 'image/gif';
+  }
+
+  if (
+    buffer.byteLength >= 12 &&
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+
+  if (
+    buffer.byteLength >= 4 &&
+    buffer[0] === 0x00 &&
+    buffer[1] === 0x00 &&
+    buffer[2] === 0x01 &&
+    buffer[3] === 0x00
+  ) {
+    return 'image/x-icon';
+  }
+
+  const headText = buffer.subarray(0, 512).toString('utf8').trimStart().toLowerCase();
+  if (headText.startsWith('<!doctype') || headText.startsWith('<html')) {
+    return null;
+  }
+  if (headText.startsWith('<svg') || (headText.startsWith('<?xml') && headText.includes('<svg'))) {
+    return 'image/svg+xml';
+  }
+
+  const cleanDeclared = (declaredType || '').split(';')[0].trim().toLowerCase();
+  if (cleanDeclared.startsWith('image/')) {
+    return cleanDeclared;
+  }
+
+  const pathname = (() => {
+    try {
+      return new URL(rawUrl).pathname.toLowerCase();
+    } catch {
+      return rawUrl.toLowerCase();
+    }
+  })();
+  if (pathname.endsWith('.png')) return 'image/png';
+  if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg')) return 'image/jpeg';
+  if (pathname.endsWith('.webp')) return 'image/webp';
+  if (pathname.endsWith('.gif')) return 'image/gif';
+  if (pathname.endsWith('.svg')) return 'image/svg+xml';
+  if (pathname.endsWith('.ico')) return 'image/x-icon';
+
+  return cleanDeclared.includes('octet-stream') ? 'image/png' : null;
+}
 
 function setMediaCached(url: string, entry: MediaCacheEntry): void {
   if (mediaCache.has(url)) {
@@ -461,6 +549,7 @@ async function createServer() {
     const sendMediaResponse = (entry: MediaCacheEntry) => {
       res.setHeader('Access-Control-Expose-Headers', 'ETag, Last-Modified');
       res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       if (entry.etag) res.setHeader('ETag', entry.etag);
       if (entry.lastModified) res.setHeader('Last-Modified', entry.lastModified);
 
@@ -516,20 +605,21 @@ async function createServer() {
         return;
       }
 
-      const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-      if (!contentType.startsWith('image/') && !contentType.includes('octet-stream')) {
+      const declaredType = upstream.headers.get('content-type') || 'application/octet-stream';
+      const arrayBuf = await upstream.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+      const detectedMime = sniffImageMimeType(buffer, rawUrl, declaredType);
+      if (!detectedMime) {
         res.status(415).json({ error: 'Desteklenmeyen medya türü.' });
         return;
       }
 
-      const arrayBuf = await upstream.arrayBuffer();
-      const buffer = Buffer.from(arrayBuf);
       const etag = upstream.headers.get('etag') || undefined;
       const lastModified = upstream.headers.get('last-modified') || undefined;
 
       const freshEntry: MediaCacheEntry = {
         buffer,
-        contentType,
+        contentType: detectedMime,
         etag,
         lastModified,
         checkedAt: Date.now(),
@@ -560,23 +650,38 @@ async function createServer() {
     const safeFileName = rawName.replace(/[^A-Za-z0-9._-]/g, '_') || 'installer.bin';
 
     try {
+      const upstreamHeaders: Record<string, string> = { 'User-Agent': 'Koru/1.0' };
+      const requestedRange = typeof req.headers.range === 'string' ? req.headers.range.trim() : '';
+      if (requestedRange) {
+        upstreamHeaders.Range = requestedRange;
+      }
+
       const upstream = await fetch(rawUrl, {
-        headers: { 'User-Agent': 'Koru/1.0' },
+        headers: upstreamHeaders,
         redirect: 'follow',
       });
 
       if (!upstream.ok || !upstream.body) {
-        res.status(502).json({ error: `Dosya indirilemedi (${upstream.status}).` });
+        res.status(upstream.status === 416 ? 416 : 502).json({ error: `Dosya indirilemedi (${upstream.status}).` });
         return;
       }
 
       const contentLength = upstream.headers.get('content-length');
+      const contentRange = upstream.headers.get('content-range');
+      const acceptRanges = upstream.headers.get('accept-ranges');
       const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
 
+      res.status(upstream.status === 206 ? 206 : 200);
       res.setHeader('Content-Type', contentType);
       res.setHeader('Content-Disposition', `attachment; filename="${safeFileName}"`);
       if (contentLength) {
         res.setHeader('Content-Length', contentLength);
+      }
+      if (contentRange) {
+        res.setHeader('Content-Range', contentRange);
+      }
+      if (acceptRanges) {
+        res.setHeader('Accept-Ranges', acceptRanges);
       }
 
       const nodeStream = Readable.fromWeb(upstream.body as unknown as import('node:stream/web').ReadableStream);

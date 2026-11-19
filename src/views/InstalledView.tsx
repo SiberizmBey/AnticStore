@@ -16,9 +16,17 @@ import {
   Loader2,
   Ban as BanIcon,
   ShieldAlert,
+  ShieldCheck,
+  FolderOpen,
+  AppWindow,
+  GitBranch,
+  Clock,
+  Pause,
+  Undo2,
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { AppIcon } from '../components/AppIcon';
+import { RunningAppPrompt, type PendingRunningAction } from '../components/RunningAppPrompt';
 import {
   checkInstalledMirrorStatus,
   formatBytes,
@@ -79,6 +87,7 @@ function getActionMeta(
 
 export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps) {
   const {
+    platformInfo,
     apps,
     installedApps,
     updatableApps,
@@ -86,16 +95,94 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
     tasks,
     activityHistory,
     clearActivityHistory,
+    getAppChannel,
+    getChannelLatestRelease,
+    getRollbackRelease,
+    isAutoUpdateApp,
+    toggleAutoUpdateApp,
+    openInstallFolder,
+    createDesktopShortcut,
+    checkAppRunning,
+    stopAppProcesses,
     installApp,
     updateApp,
     updateAllApps,
     reinstallApp,
+    rollbackApp,
     uninstallApp,
     launchApp,
+    pauseTask,
+    resumeTask,
     cancelTask,
   } = useStore();
 
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>('all');
+  const [pendingRunningAction, setPendingRunningAction] = useState<PendingRunningAction | null>(null);
+  const [actionNotice, setActionNotice] = useState<{ text: string; tone: 'info' | 'error' } | null>(
+    null
+  );
+
+  const isSelfApp = (app: StoreApp) =>
+    app.id.toLowerCase() === platformInfo.packageId.toLowerCase() ||
+    app.id.toLowerCase() === 'com.anticvalley.store';
+
+  const runWithProcessGuard = async (
+    app: StoreApp,
+    actionTitle: string,
+    proceed: () => Promise<void> | void
+  ) => {
+    setActionNotice(null);
+    if (installedMap[app.id] && platformInfo.isDesktop && !isSelfApp(app)) {
+      const status = await checkAppRunning(app);
+      if (status.running) {
+        setPendingRunningAction({
+          app,
+          actionTitle,
+          status,
+          proceed,
+        });
+        return;
+      }
+    }
+    await proceed();
+  };
+
+  const handleUpdateAllWithGuard = async () => {
+    setActionNotice(null);
+    if (platformInfo.isDesktop) {
+      const targets = updatableApps.filter((a) => a.downloadable !== false && !isSelfApp(a));
+      for (const target of targets) {
+        const status = await checkAppRunning(target);
+        if (status.running) {
+          setPendingRunningAction({
+            app: target,
+            actionTitle: 'Toplu Güncelleme',
+            status,
+            proceed: () => updateAllApps(),
+          });
+          return;
+        }
+      }
+    }
+    await updateAllApps();
+  };
+
+  const handleOpenFolder = async (app: StoreApp) => {
+    setActionNotice(null);
+    const res = await openInstallFolder(app);
+    if (!res.opened && res.message) {
+      setActionNotice({ text: res.message, tone: 'error' });
+    }
+  };
+
+  const handleCreateShortcut = async (app: StoreApp) => {
+    setActionNotice(null);
+    const res = await createDesktopShortcut(app);
+    setActionNotice({
+      text: res.message,
+      tone: res.created ? 'info' : 'error',
+    });
+  };
 
   const filteredHistory = useMemo(() => {
     return activityHistory.filter((item) => {
@@ -142,7 +229,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
         {downloadableUpdatesCount > 0 && (
           <button
             type="button"
-            onClick={() => void updateAllApps()}
+            onClick={() => void handleUpdateAllWithGuard()}
             className="px-4 py-2 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 flex items-center gap-2 cursor-pointer self-start sm:self-auto whitespace-nowrap"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -150,6 +237,33 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
           </button>
         )}
       </header>
+
+      <RunningAppPrompt
+        pending={pendingRunningAction}
+        onStopAndProceed={stopAppProcesses}
+        onClose={() => setPendingRunningAction(null)}
+      />
+
+      {actionNotice && (
+        <div
+          role="status"
+          className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between gap-3 ${
+            actionNotice.tone === 'error'
+              ? 'bg-red-500/10 border-red-500/30 text-red-300'
+              : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+          }`}
+        >
+          <span>{actionNotice.text}</span>
+          <button
+            type="button"
+            onClick={() => setActionNotice(null)}
+            className="p-1 rounded-full hover:bg-card/50 cursor-pointer shrink-0"
+            aria-label="Kapat"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Pending Updates Section */}
       {updatableApps.length > 0 && (
@@ -162,6 +276,9 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
               const inst = installedMap[app.id];
               const task = tasks[app.id];
               const isDownloadable = app.downloadable !== false;
+              const channel = getAppChannel(app.id);
+              const channelRelease = getChannelLatestRelease(app);
+              const targetVersion = channelRelease?.version || app.latestVersion;
               return (
                 <div
                   key={app.id}
@@ -178,26 +295,77 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                       imageClassName="w-full h-full object-contain rounded-lg"
                     />
                     <div className="min-w-0">
-                      <h3 className="text-sm font-bold text-primary truncate">{app.name}</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-bold text-primary truncate">{app.name}</h3>
+                        {channel === 'beta' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/40 text-amber-300">
+                            Beta
+                          </span>
+                        )}
+                        {channel === 'nightly' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 border border-violet-500/40 text-violet-300">
+                            Nightly
+                          </span>
+                        )}
+                        {channel === 'rc' && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 border border-sky-500/40 text-sky-300">
+                            RC
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs font-mono tabular-nums text-muted">
-                        v{inst?.version} → <span className="accent-text font-semibold">v{app.latestVersion}</span>
+                        v{inst?.version} → <span className="accent-text font-semibold">v{targetVersion}</span>
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
                     {task ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void cancelTask(app.id);
-                        }}
-                        className="px-4 py-1.5 rounded-full bg-card border border-subtle text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        <span className="tabular-nums">{task.percent}% İptal</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {(task.phase === 'downloading' || task.phase === 'queued') && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void pauseTask(app.id);
+                            }}
+                            title="Duraklat"
+                            className="p-1.5 rounded-full bg-card border border-subtle hover:border-hover text-amber-400 cursor-pointer"
+                          >
+                            <Pause className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {task.phase === 'paused' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void resumeTask(app.id);
+                            }}
+                            className="px-3.5 py-1.5 rounded-full btn-primary-koza text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                            <span>Devam Et</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void cancelTask(app.id);
+                          }}
+                          className="px-4 py-1.5 rounded-full bg-card border border-subtle text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          <span className="tabular-nums">
+                            {task.phase === 'queued'
+                              ? 'Sırada · İptal'
+                              : task.phase === 'paused'
+                              ? 'İptal'
+                              : `${task.percent}% İptal`}
+                          </span>
+                        </button>
+                      </div>
                     ) : !isDownloadable ? (
                       <button
                         type="button"
@@ -213,7 +381,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          void updateApp(app);
+                          void runWithProcessGuard(app, 'Güncelleme', () => updateApp(app));
                         }}
                         className="px-4 py-1.5 rounded-full text-xs font-bold btn-primary-koza hover:opacity-90 flex items-center gap-1.5 cursor-pointer"
                       >
@@ -256,7 +424,12 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
             const inst = installedMap[app.id];
             const task = tasks[app.id];
             const isDownloadable = app.downloadable !== false;
-            const hasUpdate = Boolean(inst && isUpdateAvailable(inst.version, app.latestVersion));
+            const channel = getAppChannel(app.id);
+            const channelRelease = getChannelLatestRelease(app);
+            const targetVersion = channelRelease?.version || app.latestVersion;
+            const hasUpdate = Boolean(inst && isUpdateAvailable(inst.version, targetVersion));
+            const rollbackRelease = getRollbackRelease(app);
+            const autoUpdating = isAutoUpdateApp(app.id);
             const mirrorStatus = checkInstalledMirrorStatus(
               inst?.version,
               app.latestVersion,
@@ -313,26 +486,91 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                             </span>
                           )
                         )}
+                        {channel === 'beta' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/35 text-amber-300">
+                            <GitBranch className="w-2.5 h-2.5" />
+                            <span>Beta</span>
+                          </span>
+                        )}
+                        {channel === 'nightly' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 border border-violet-500/35 text-violet-300">
+                            <GitBranch className="w-2.5 h-2.5" />
+                            <span>Nightly</span>
+                          </span>
+                        )}
+                        {channel === 'rc' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 border border-sky-500/35 text-sky-300">
+                            <GitBranch className="w-2.5 h-2.5" />
+                            <span>RC</span>
+                          </span>
+                        )}
+                        {inst?.sha256Verified && (
+                          <span
+                            title={inst.sha256 ? `SHA-256: ${inst.sha256}` : 'SHA-256 Bütünlüğü Doğrulandı'}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
+                          >
+                            <ShieldCheck className="w-2.5 h-2.5" />
+                            <span>SHA-256</span>
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-muted font-mono tabular-nums mt-0.5 truncate">
-                        {app.id} · Kurulu: v{inst.version} · Resmi: v{app.latestVersion}
+                        {app.id} · Kurulu: v{inst.version} · {channel === 'beta' ? 'Beta' : channel === 'nightly' ? 'Nightly' : channel === 'rc' ? 'RC' : 'Resmi'}: v{targetVersion}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
                     {task ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void cancelTask(app.id);
-                        }}
-                        className="px-3.5 py-1.5 rounded-full bg-inner border border-subtle text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        <span className="tabular-nums">{task.message} ({task.percent}%)</span>
-                      </button>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {(task.phase === 'downloading' || task.phase === 'queued') && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void pauseTask(app.id);
+                            }}
+                            className="px-3 py-1.5 rounded-full bg-inner border border-subtle hover:bg-card-hover text-xs font-semibold text-amber-400 flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Pause className="w-3.5 h-3.5" />
+                            <span>Duraklat</span>
+                          </button>
+                        )}
+                        {task.phase === 'paused' && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void resumeTask(app.id);
+                            }}
+                            className="px-3.5 py-1.5 rounded-full btn-primary-koza hover:opacity-90 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Play className="w-3.5 h-3.5" />
+                            <span>Devam Et</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void cancelTask(app.id);
+                          }}
+                          className="px-3.5 py-1.5 rounded-full bg-inner border border-subtle text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer"
+                        >
+                          {task.phase === 'queued' ? (
+                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          ) : (
+                            <X className="w-3.5 h-3.5" />
+                          )}
+                          <span className="tabular-nums">
+                            {task.phase === 'queued'
+                              ? `${task.message} · İptal`
+                              : task.phase === 'paused'
+                              ? `İptal (${task.percent}%)`
+                              : `${task.message} (${task.percent}%)`}
+                          </span>
+                        </button>
+                      </div>
                     ) : (
                       <>
                         {isUnofficialVersion && app.latestRelease && isDownloadable && (
@@ -340,7 +578,9 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              void installApp(app, { release: app.latestRelease!, mode: 'reinstall' });
+                              void runWithProcessGuard(app, 'Resmi Sürüm Kurulumu', () =>
+                                installApp(app, { release: app.latestRelease!, mode: 'reinstall' })
+                              );
                             }}
                             className="px-3.5 py-1.5 rounded-full bg-red-600 hover:bg-red-500 border border-red-400/50 text-xs font-bold text-white flex items-center gap-1.5 cursor-pointer"
                           >
@@ -355,7 +595,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                             onClick={(e) => {
                               e.stopPropagation();
                               if (!isDownloadable) return;
-                              void updateApp(app);
+                              void runWithProcessGuard(app, 'Güncelleme', () => updateApp(app));
                             }}
                             className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${
                               !isDownloadable
@@ -380,13 +620,27 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                           <Play className="w-3.5 h-3.5" />
                           <span>Aç</span>
                         </button>
+                        {rollbackRelease && isDownloadable && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void runWithProcessGuard(app, 'Sürüm Geri Alma', () => rollbackApp(app));
+                            }}
+                            title={`Önceki sürüme geri al: v${rollbackRelease.version}`}
+                            className="px-3.5 py-1.5 rounded-full bg-inner border border-subtle hover:bg-card-hover text-xs font-semibold text-secondary hover:text-primary flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Undo2 className="w-3.5 h-3.5 accent-text" />
+                            <span className="tabular-nums">Geri Al (v{rollbackRelease.version})</span>
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={!isDownloadable}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!isDownloadable) return;
-                            void reinstallApp(app);
+                            void runWithProcessGuard(app, 'Yeniden Kurulum', () => reinstallApp(app));
                           }}
                           className={`px-3.5 py-1.5 rounded-full bg-inner border border-subtle text-xs font-semibold flex items-center gap-1.5 ${
                             !isDownloadable
@@ -401,7 +655,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            void uninstallApp(app);
+                            void runWithProcessGuard(app, 'Kaldırma', () => uninstallApp(app));
                           }}
                           className="px-3.5 py-1.5 rounded-full border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-xs font-semibold text-red-400 flex items-center gap-1.5 cursor-pointer"
                         >
@@ -411,6 +665,55 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                       </>
                     )}
                   </div>
+                </div>
+
+                {/* Secondary Quick Utilities Row */}
+                <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-subtle/60">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {platformInfo.isDesktop && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleOpenFolder(app);
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-inner border border-subtle hover:bg-card-hover text-[11px] font-medium text-secondary hover:text-primary inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <FolderOpen className="w-3 h-3 accent-text" />
+                          <span>Klasörü Aç</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleCreateShortcut(app);
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-inner border border-subtle hover:bg-card-hover text-[11px] font-medium text-secondary hover:text-primary inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <AppWindow className="w-3 h-3 accent-text" />
+                          <span>Masaüstü Kısayolu</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleAutoUpdateApp(app);
+                    }}
+                    title="Açık değilken güncellemeleri arka planda otomatik uygular"
+                    className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                      autoUpdating
+                        ? 'accent-subtle accent-border accent-text'
+                        : 'bg-inner border-subtle text-muted hover:text-primary hover:bg-card-hover'
+                    }`}
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>{autoUpdating ? 'Oto-Güncelle: Açık' : 'Oto-Güncelle'}</span>
+                  </button>
                 </div>
 
                 {isUnofficialVersion && (
@@ -429,7 +732,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                         className="h-full rounded-full transition-all duration-150"
                         style={{
                           width: `${Math.max(4, task.percent)}%`,
-                          backgroundColor: 'var(--accent)',
+                          backgroundColor: task.phase === 'paused' ? '#f59e0b' : 'var(--accent)',
                         }}
                       />
                     </div>
@@ -511,11 +814,19 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
               >
                 <div className="flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Loader2 className="w-4 h-4 accent-text animate-spin shrink-0" />
+                    {activeTask.phase === 'paused' ? (
+                      <Pause className="w-4 h-4 text-amber-400 shrink-0" />
+                    ) : (
+                      <Loader2 className="w-4 h-4 accent-text animate-spin shrink-0" />
+                    )}
                     <span className="font-bold text-primary truncate">
                       {matchedApp?.name || activeTask.appId}
                     </span>
-                    <span className="text-[11px] accent-text font-semibold truncate">
+                    <span
+                      className={`text-[11px] font-semibold truncate ${
+                        activeTask.phase === 'paused' ? 'text-amber-400' : 'accent-text'
+                      }`}
+                    >
                       {activeTask.message}
                     </span>
                   </div>
@@ -523,6 +834,24 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                     <span className="font-mono font-bold tabular-nums text-primary">
                       {activeTask.percent}%
                     </span>
+                    {(activeTask.phase === 'downloading' || activeTask.phase === 'queued') && (
+                      <button
+                        type="button"
+                        onClick={() => void pauseTask(activeTask.appId)}
+                        className="px-2.5 py-1 rounded-full bg-card border border-subtle text-[11px] font-semibold text-amber-400 hover:bg-card-hover cursor-pointer"
+                      >
+                        Duraklat
+                      </button>
+                    )}
+                    {activeTask.phase === 'paused' && (
+                      <button
+                        type="button"
+                        onClick={() => void resumeTask(activeTask.appId)}
+                        className="px-2.5 py-1 rounded-full btn-primary-koza text-[11px] font-bold cursor-pointer"
+                      >
+                        Devam Et
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => void cancelTask(activeTask.appId)}
@@ -537,7 +866,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                     className="h-full rounded-full transition-all duration-150"
                     style={{
                       width: `${Math.max(4, activeTask.percent)}%`,
-                      backgroundColor: 'var(--accent)',
+                      backgroundColor: activeTask.phase === 'paused' ? '#f59e0b' : 'var(--accent)',
                     }}
                   />
                 </div>
@@ -596,6 +925,12 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                           >
                             {meta.label}
                           </span>
+                          {entry.sha256Verified && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                              <ShieldCheck className="w-2.5 h-2.5" />
+                              <span>SHA-256</span>
+                            </span>
+                          )}
                         </div>
                         <p className="text-[11px] text-secondary mt-0.5 truncate">
                           {liveTask ? liveTask.message : entry.message}
@@ -607,6 +942,30 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
+                      {liveTask && (liveTask.phase === 'downloading' || liveTask.phase === 'queued') && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void pauseTask(entry.appId);
+                          }}
+                          className="px-2.5 py-1 rounded-full bg-card border border-subtle text-[11px] font-semibold text-amber-400 hover:bg-card-hover cursor-pointer"
+                        >
+                          Duraklat
+                        </button>
+                      )}
+                      {liveTask && liveTask.phase === 'paused' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void resumeTask(entry.appId);
+                          }}
+                          className="px-2.5 py-1 rounded-full btn-primary-koza text-[11px] font-bold cursor-pointer"
+                        >
+                          Devam Et
+                        </button>
+                      )}
                       {liveTask && (
                         <button
                           type="button"
@@ -632,7 +991,7 @@ export function InstalledView({ onSelectApp, onBrowseStore }: InstalledViewProps
                           className="h-full rounded-full transition-all duration-150"
                           style={{
                             width: `${Math.max(4, liveTask.percent)}%`,
-                            backgroundColor: 'var(--accent)',
+                            backgroundColor: liveTask.phase === 'paused' ? '#f59e0b' : 'var(--accent)',
                           }}
                         />
                       </div>

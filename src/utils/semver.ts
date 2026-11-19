@@ -1,4 +1,4 @@
-import type { PlatformKind, StoreAsset } from '../types';
+import type { PlatformKind, ReleaseChannel, StoreAsset, StoreRelease } from '../types';
 
 export function cleanVersion(version: string): string {
   return String(version || '')
@@ -12,8 +12,10 @@ export function compareSemver(a: string, b: string): number {
   const cleanB = cleanVersion(b);
   if (cleanA === cleanB) return 0;
 
-  const [mainA, preA] = cleanA.split('-');
-  const [mainB, preB] = cleanB.split('-');
+  const [mainA, rawPreA] = cleanA.split('-');
+  const [mainB, rawPreB] = cleanB.split('-');
+  const preA = rawPreA && /^stable(?:[.\-_]?\d+)?$/i.test(rawPreA) ? '' : rawPreA;
+  const preB = rawPreB && /^stable(?:[.\-_]?\d+)?$/i.test(rawPreB) ? '' : rawPreB;
 
   const partsA = mainA.split('.').map((n) => parseInt(n, 10) || 0);
   const partsB = mainB.split('.').map((n) => parseInt(n, 10) || 0);
@@ -35,6 +37,70 @@ export function compareSemver(a: string, b: string): number {
 export function isUpdateAvailable(installedVersion: string | undefined, latestVersion: string | undefined): boolean {
   if (!installedVersion || !latestVersion) return false;
   return compareSemver(latestVersion, installedVersion) > 0;
+}
+
+export function getReleaseChannelKind(
+  release: Pick<StoreRelease, 'tag' | 'version' | 'prerelease'>
+): ReleaseChannel {
+  const combined = `${release.tag || ''} ${release.version || ''}`.toLowerCase();
+  if (/(?:^|[.\-_])stable(?:[.\-_]?\d+|[a-z]*)?(?:\b|\s|$)/i.test(combined) || /-stable\b/i.test(combined)) {
+    return 'stable';
+  }
+  if (/(?:^|[.\-_])rc(?:[.\-_]?\d+|[a-z]*)?(?:\b|\s|$)/i.test(combined) || /-rc\b/i.test(combined)) {
+    return 'rc';
+  }
+  if (/(?:^|[.\-_])nightly(?:[.\-_]?\d+|[a-z]*)?(?:\b|\s|$)/i.test(combined) || /-nightly\b/i.test(combined)) {
+    return 'nightly';
+  }
+  if (
+    /(?:^|[.\-_])(beta|alpha|dev|preview)(?:[.\-_]?\d+|[a-z]*)?(?:\b|\s|$)/i.test(combined) ||
+    /-beta\b/i.test(combined) ||
+    Boolean(release.prerelease)
+  ) {
+    return 'beta';
+  }
+  return 'stable';
+}
+
+export function getAvailableReleaseChannels(releases: StoreRelease[]): ReleaseChannel[] {
+  if (!releases || releases.length === 0) return ['stable'];
+  const present = new Set<ReleaseChannel>(releases.map((r) => getReleaseChannelKind(r)));
+  const ordered: ReleaseChannel[] = [];
+  if (present.has('stable')) ordered.push('stable');
+  if (present.has('beta')) ordered.push('beta');
+  if (present.has('nightly')) ordered.push('nightly');
+  if (present.has('rc')) ordered.push('rc');
+  return ordered.length > 0 ? ordered : ['stable'];
+}
+
+export function filterReleasesByChannel(
+  releases: StoreRelease[],
+  channel: ReleaseChannel
+): StoreRelease[] {
+  if (!releases || releases.length === 0) return [];
+  return releases
+    .filter((r) => getReleaseChannelKind(r) === channel)
+    .sort((a, b) => compareSemver(b.version, a.version));
+}
+
+export function getEffectiveLatestRelease(
+  releases: StoreRelease[],
+  channel: ReleaseChannel,
+  fallbackLatest?: StoreRelease | null
+): StoreRelease | null {
+  if (!releases || releases.length === 0) {
+    return fallbackLatest || null;
+  }
+  const channelMatches = filterReleasesByChannel(releases, channel);
+  if (channelMatches.length > 0) {
+    return channelMatches[0];
+  }
+  const stableMatches = filterReleasesByChannel(releases, 'stable');
+  if (stableMatches.length > 0) {
+    return stableMatches[0];
+  }
+  const sortedAll = [...releases].sort((a, b) => compareSemver(b.version, a.version));
+  return sortedAll[0] || fallbackLatest || null;
 }
 
 export interface InstalledMirrorStatus {
@@ -60,12 +126,6 @@ export function checkInstalledMirrorStatus(
     return { isUnofficial: false, isAheadOfOfficial: false, isMissingFromMirrors: false };
   }
 
-  const isAheadOfOfficial = Boolean(
-    latestVersion &&
-      latestVersion !== '0.0.0' &&
-      compareSemver(installedVersion, latestVersion) > 0
-  );
-
   const existsInReleases =
     releases.length > 0
       ? releases.some(
@@ -76,6 +136,13 @@ export function checkInstalledMirrorStatus(
       : Boolean(latestVersion && compareSemver(installedVersion, latestVersion) === 0);
 
   const isMissingFromMirrors = !existsInReleases;
+  const isAheadOfOfficial = Boolean(
+    isMissingFromMirrors &&
+      latestVersion &&
+      latestVersion !== '0.0.0' &&
+      compareSemver(installedVersion, latestVersion) > 0
+  );
+
   return {
     isUnofficial: isAheadOfOfficial || isMissingFromMirrors,
     isAheadOfOfficial,
@@ -137,9 +204,21 @@ export function pickPreferredAsset(
 ): StoreAsset | null {
   if (!assets || assets.length === 0) return null;
 
-  const usable = assets.filter(
-    (a) => !a.name.endsWith('.blockmap') && !a.name.endsWith('.yml') && !a.name.endsWith('.yaml')
-  );
+  const usable = assets.filter((a) => {
+    const lower = a.name.toLowerCase();
+    return (
+      !lower.endsWith('.blockmap') &&
+      !lower.endsWith('.yml') &&
+      !lower.endsWith('.yaml') &&
+      !lower.endsWith('.sha256') &&
+      !lower.endsWith('.sha256sum') &&
+      !lower.endsWith('.sha512') &&
+      !lower.endsWith('.sig') &&
+      !lower.endsWith('.asc') &&
+      lower !== 'checksums.txt' &&
+      !lower.startsWith('sha256sum')
+    );
+  });
   const pool = usable.length > 0 ? usable : assets;
 
   const targetPlatform: PlatformKind =
@@ -176,3 +255,71 @@ export function formatTurkishDate(isoDate?: string): string {
     year: 'numeric',
   });
 }
+
+export function formatDownloadCount(count?: number): string {
+  if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) return '';
+  if (count < 1000) return String(Math.round(count));
+  if (count < 1_000_000) {
+    const val = (count / 1000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+    return `${val} B`;
+  }
+  const val = (count / 1_000_000).toFixed(1).replace(/\.0$/, '').replace('.', ',');
+  return `${val} Mn`;
+}
+
+export interface ChangelogRangeSummary {
+  fromVersion: string;
+  toVersion: string;
+  isUpdateRange: boolean;
+  releases: StoreRelease[];
+}
+
+export function buildChangelogRangeSummary(
+  releases: StoreRelease[],
+  options: {
+    channel: ReleaseChannel;
+    fromVersion?: string;
+    targetRelease?: StoreRelease | null;
+    maxRecentCount?: number;
+  }
+): ChangelogRangeSummary | null {
+  if (!releases || releases.length === 0) return null;
+
+  const channelReleases = filterReleasesByChannel(releases, options.channel);
+  const pool =
+    channelReleases.length > 0
+      ? channelReleases
+      : [...releases].sort((a, b) => compareSemver(b.version, a.version));
+
+  const target = options.targetRelease || pool[0];
+  if (!target) return null;
+
+  const fromVer = options.fromVersion ? cleanVersion(options.fromVersion) : '';
+  if (fromVer && compareSemver(target.version, fromVer) > 0) {
+    const between = pool.filter(
+      (r) => compareSemver(r.version, fromVer) > 0 && compareSemver(r.version, target.version) <= 0
+    );
+    if (between.length > 0) {
+      return {
+        fromVersion: fromVer,
+        toVersion: target.version,
+        isUpdateRange: true,
+        releases: between,
+      };
+    }
+  }
+
+  const maxRecent = options.maxRecentCount ?? 5;
+  const upToTarget = pool
+    .filter((r) => compareSemver(r.version, target.version) <= 0)
+    .slice(0, maxRecent);
+  if (upToTarget.length < 2) return null;
+
+  return {
+    fromVersion: upToTarget[upToTarget.length - 1].version,
+    toVersion: upToTarget[0].version,
+    isUpdateRange: false,
+    releases: upToTarget,
+  };
+}
+

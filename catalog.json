@@ -91,9 +91,29 @@
                 "arch": ["x64"],
                 "minRamGb": "",
                 "minDiskMb": "",
-                "runtimes": ["WebView2"],
-                "notes": ""
+                "runtimes": ["WebView2", "VB-CABLE Virtual Audio Device"],
+                "notes": "Ses yönlendirme ve sanal mikrofon özellikleri için VB-CABLE sürücüsü gerektirir."
             },
+            "prerequisites": [
+                {
+                    "id": "vb-cable",
+                    "name": "VB-CABLE Virtual Audio Device",
+                    "description": "Lir'in ses efektlerini sanal mikrofon ve ses çıkış kanallarına aktarabilmesi için Windows ses sürücüsü gereklidir.",
+                    "kind": "driver",
+                    "platform": "windows",
+                    "required": true,
+                    "downloadUrl": "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack46.zip",
+                    "fileName": "VBCABLE_Driver_Pack46.zip",
+                    "packageType": "zip-exe",
+                    "executableX64": "VBCABLE_Setup_x64.exe",
+                    "executableX86": "VBCABLE_Setup.exe",
+                    "silentArgs": ["-i", "-h"],
+                    "interactiveArgs": ["-i"],
+                    "requiresAdmin": true,
+                    "websiteUrl": "https://vb-audio.com/Cable/",
+                    "rebootMayBeRequired": true
+                }
+            ],
             "permissions": [
                 "network",
                 "filesystem",

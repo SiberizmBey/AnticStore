@@ -9,6 +9,7 @@ import { motion } from "motion/react";
 import { useStore } from "../context/StoreContext";
 import { WindowControls } from "./WindowControls";
 import { NotificationPopover } from "./NotificationPopover";
+import { DownloadQueuePopover } from "./DownloadQueuePopover";
 
 export type NavTab = "store" | "installed" | "settings";
 
@@ -151,8 +152,9 @@ export function Navbar({ currentTab, onSelectTab, onSelectAppById }: NavbarProps
                     })}
                 </nav>
 
-                {/* Sağ Kapsül: Notifications + Sync + Window Controls */}
+                {/* Sağ Kapsül: Queue + Notifications + Sync + Window Controls */}
                 <div className="koza-nav-capsule flex items-center gap-1.5 sm:gap-2 p-1.5 sm:px-2 rounded-full bg-island border border-subtle shadow-sm shrink-0 transition-colors">
+                    <DownloadQueuePopover onSelectAppById={onSelectAppById} />
                     <NotificationPopover onSelectAppById={onSelectAppById} />
 
                     <button
