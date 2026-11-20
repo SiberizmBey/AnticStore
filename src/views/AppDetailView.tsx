@@ -29,12 +29,11 @@ import {
   ChevronRight,
   ChevronDown,
   Layers,
-  Tag,
   Sparkles,
-  GitBranch,
   KeyRound,
   Pause,
   Undo2,
+  MoreHorizontal,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useStore } from '../context/StoreContext';
@@ -120,7 +119,9 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [pendingRunningAction, setPendingRunningAction] = useState<PendingRunningAction | null>(null);
   const [isVersionMenuOpen, setIsVersionMenuOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const versionMenuRef = useRef<HTMLDivElement>(null);
+  const actionsMenuRef = useRef<HTMLDivElement>(null);
 
   const availableChannels = useMemo(
     () => getAvailableChannels(app),
@@ -154,6 +155,7 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
     setPendingRunningAction(null);
     setActionNotice(null);
     setIsVersionMenuOpen(false);
+    setIsActionsMenuOpen(false);
     clearAppError(app.id);
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
     if (resolveAppPrerequisites(app).length > 0) {
@@ -170,21 +172,33 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
   }, [app.id, activeChannel, channelReleases, app.releases, app.latestRelease, selectedTag]);
 
   useEffect(() => {
-    if (!isVersionMenuOpen) return;
+    if (!isVersionMenuOpen && !isActionsMenuOpen) return;
     const handlePointerDown = (event: PointerEvent) => {
-      if (versionMenuRef.current && !versionMenuRef.current.contains(event.target as Node)) {
+      if (
+        isVersionMenuOpen &&
+        versionMenuRef.current &&
+        !versionMenuRef.current.contains(event.target as Node)
+      ) {
         setIsVersionMenuOpen(false);
+      }
+      if (
+        isActionsMenuOpen &&
+        actionsMenuRef.current &&
+        !actionsMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsActionsMenuOpen(false);
       }
     };
     document.addEventListener('pointerdown', handlePointerDown);
     return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, [isVersionMenuOpen]);
+  }, [isVersionMenuOpen, isActionsMenuOpen]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (isVersionMenuOpen) {
+        if (isVersionMenuOpen || isActionsMenuOpen) {
           setIsVersionMenuOpen(false);
+          setIsActionsMenuOpen(false);
           return;
         }
         onBack();
@@ -192,7 +206,7 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onBack, isVersionMenuOpen]);
+  }, [onBack, isVersionMenuOpen, isActionsMenuOpen]);
 
   const selectedRelease = useMemo(() => {
     return (
@@ -253,7 +267,6 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
     app.syncError
   );
   const isUnofficialVersion = mirrorStatus.isUnofficial;
-  const hasAnySpotlight = isUnofficialVersion || (!isComingSoon && (isNew || hasUpdate));
   const selectedIsDifferent = Boolean(
     installed && selectedRelease && compareSemver(selectedRelease.version, installed.version) !== 0
   );
@@ -487,24 +500,17 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
         )}
       </AnimatePresence>
 
-      {/* Full-Width App Hero Card */}
-      <section
-        className={`relative z-20 p-6 sm:p-8 rounded-3xl border flex flex-col gap-5 ${
-          isUnofficialVersion
-            ? 'card-danger-spotlight bg-card/85 backdrop-blur-md'
-            : hasAnySpotlight
-            ? 'card-update-spotlight bg-card/80 backdrop-blur-md'
-            : 'bg-card border-subtle'
-        }`}
-      >
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-          <div className="flex items-start sm:items-center gap-4 sm:gap-5 min-w-0">
+      {/* Borderless Modern App Hero */}
+      <section className="relative z-20 p-5 sm:p-7 rounded-3xl bg-card/65 backdrop-blur-md flex flex-col gap-6">
+        {/* Top Row: Identity + Focused Primary Actions */}
+        <div className="relative z-20 flex flex-col lg:flex-row lg:items-start justify-between gap-5">
+          <div className="flex items-start gap-4 sm:gap-5 min-w-0">
             <AppIcon
               name={app.name}
               iconUrl={app.iconUrl}
               cacheKey={app.syncedAt}
               grayscale={!isDownloadable}
-              className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-modal p-2"
+              className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-inner/90 p-2"
               imageClassName="h-full w-full object-contain rounded-xl"
             />
 
@@ -517,521 +523,583 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
                 >
                   {app.name}
                 </h1>
-                {isUnofficialVersion && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-500/20 border border-red-500/50 text-red-300 shrink-0">
+                {isUnofficialVersion ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/15 text-red-300 shrink-0">
                     Resmi Dışı Sürüm
                   </span>
-                )}
-                {!isUnofficialVersion && isNew && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold badge-koza shrink-0">
-                    Yeni
-                  </span>
-                )}
-                {!isUnofficialVersion && hasUpdate && !isComingSoon && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold badge-koza shrink-0">
-                    Güncelleme Mevcut
-                  </span>
-                )}
-                {isComingSoon && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/12 border border-amber-500/35 text-amber-400 shrink-0">
+                ) : isComingSoon ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/12 text-amber-400 shrink-0">
                     <Clock className="w-3 h-3 shrink-0" />
                     <span>Yakında</span>
                   </span>
-                )}
+                ) : hasUpdate ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold accent-subtle accent-text shrink-0">
+                    Güncelleme Mevcut
+                  </span>
+                ) : isNew ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold accent-subtle accent-text shrink-0">
+                    Yeni
+                  </span>
+                ) : null}
               </div>
 
-              <p className="text-xs sm:text-sm text-secondary max-w-2xl leading-relaxed">
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-secondary flex-wrap">
+                <span className="font-medium text-primary/90">{app.developer}</span>
+                <span aria-hidden="true" className="text-muted">·</span>
+                <span>{app.category}</span>
+              </div>
+
+              <p className="text-sm text-secondary/90 max-w-2xl leading-relaxed pt-0.5">
                 {app.summary}
               </p>
-
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted pt-0.5">
-                <span className="font-medium text-secondary">{app.developer}</span>
-                <span aria-hidden="true">·</span>
-                <span>{app.category}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono text-[11px]">{app.id}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono tabular-nums text-primary font-semibold">
-                  v{app.latestVersion}
-                </span>
-                {effectiveReleaseDate && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-mono tabular-nums">
-                      Yayın: {formatTurkishDate(effectiveReleaseDate)}
-                    </span>
-                  </>
-                )}
-                {typeof app.totalDownloads === 'number' && app.totalDownloads > 0 && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span
-                      title="GitHub tüm sürümler toplam indirme sayısı"
-                      className="inline-flex items-center gap-1 font-mono tabular-nums text-secondary"
-                    >
-                      <Download className="w-3 h-3 accent-text shrink-0" />
-                      <span>{formatDownloadCount(app.totalDownloads)} indirme</span>
-                    </span>
-                  </>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 text-xs pt-0.5">
-                {installed ? (
-                  <span className="text-emerald-400 font-semibold inline-flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span className="tabular-nums">Kurulu Sürüm: v{installed.version}</span>
-                  </span>
-                ) : (
-                  <span className="text-secondary font-medium inline-flex items-center gap-1.5">
-                    <Package className="w-3.5 h-3.5 accent-text" />
-                    <span>{isComingSoon ? 'Yakında Yayınlanacak' : 'Kurulmaya Hazır'}</span>
-                  </span>
-                )}
-
-                {installed?.sha256Verified && (
-                  <>
-                    <span aria-hidden="true" className="text-muted">·</span>
-                    <span
-                      title={installed.sha256 ? `SHA-256: ${installed.sha256}` : 'SHA-256 doğrulandı'}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/12 border border-emerald-500/35 text-emerald-400"
-                    >
-                      <KeyRound className="w-3 h-3 shrink-0" />
-                      <span>SHA-256 Doğrulandı</span>
-                    </span>
-                  </>
-                )}
-
-                <span aria-hidden="true" className="text-muted">·</span>
-
-                <span
-                  title={compatibility.summary}
-                  className={`inline-flex items-center gap-1 font-semibold ${
-                    compatibility.status === 'compatible'
-                      ? 'text-emerald-400'
-                      : compatibility.status === 'partial'
-                      ? 'text-amber-400'
-                      : 'text-red-400'
-                  }`}
-                >
-                  {compatibility.status === 'compatible' ? (
-                    <ShieldCheck className="w-3.5 h-3.5" />
-                  ) : (
-                    <ShieldAlert className="w-3.5 h-3.5" />
-                  )}
-                  <span>{compatibility.badgeLabel}</span>
-                </span>
-              </div>
             </div>
           </div>
 
-          {/* Primary Actions + Release Channel + Slimmer Version Selector (Clean 2-Row Stack) */}
-          <div className="flex flex-col items-start xl:items-end gap-2.5 shrink-0">
-            {/* Row 1: Primary & Installed Actions */}
-            <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2">
-              {task ? (
-                <>
-                  {(task.phase === 'downloading' || task.phase === 'queued') && (
-                    <button
-                      type="button"
-                      onClick={() => void pauseTask(app.id)}
-                      className="px-4 py-2 rounded-full bg-inner border border-subtle hover:bg-card-hover hover:border-hover text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                    >
-                      <Pause className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Duraklat</span>
-                    </button>
-                  )}
-                  {task.phase === 'paused' && (
-                    <button
-                      type="button"
-                      onClick={() => void resumeTask(app.id)}
-                      className="px-4 py-2 rounded-full btn-primary-koza hover:opacity-90 text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                    >
-                      <Play className="w-3.5 h-3.5" />
-                      <span>Devam Et</span>
-                    </button>
-                  )}
+          {/* Focused Primary Action Controls */}
+          <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 shrink-0 pt-0.5">
+            {task ? (
+              <>
+                {(task.phase === 'downloading' || task.phase === 'queued') && (
                   <button
                     type="button"
-                    onClick={() => void cancelTask(app.id)}
-                    className="px-4 py-2 rounded-full bg-inner border border-subtle hover:border-hover text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                    onClick={() => void pauseTask(app.id)}
+                    className="px-4 py-2.5 rounded-full bg-inner hover:bg-card-hover text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
                   >
-                    <X className="w-3.5 h-3.5" />
-                    <span>İptal Et</span>
+                    <Pause className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Duraklat</span>
                   </button>
-                </>
-              ) : (
-                <>
+                )}
+                {task.phase === 'paused' && (
                   <button
                     type="button"
-                    onClick={() => void toggleFollowApp(app)}
-                    title={following ? 'Bildirim takibini kapat' : 'Yayın ve güncelleme bildirimlerini aç'}
-                    className={`px-3.5 py-2 rounded-full border text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
-                      following
-                        ? 'accent-subtle accent-border accent-text'
-                        : 'bg-inner border-subtle hover:bg-card-hover text-primary'
-                    }`}
+                    onClick={() => void resumeTask(app.id)}
+                    className="px-4 py-2.5 rounded-full btn-primary-koza hover:opacity-90 text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    {following ? <BellRing className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
-                    <span>{following ? 'Bildirimler Açık' : 'Takip Et'}</span>
+                    <Play className="w-3.5 h-3.5" />
+                    <span>Devam Et</span>
                   </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void cancelTask(app.id)}
+                  className="px-4 py-2.5 rounded-full bg-inner hover:bg-card-hover text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>İptal Et</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void toggleFollowApp(app)}
+                  title={following ? 'Bildirim takibini kapat' : 'Yayın ve güncelleme bildirimlerini aç'}
+                  className={`px-3.5 py-2.5 rounded-full text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                    following
+                      ? 'accent-subtle accent-text'
+                      : 'bg-inner hover:bg-card-hover text-secondary hover:text-primary'
+                  }`}
+                >
+                  {following ? <BellRing className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+                  <span>{following ? 'Takipte' : 'Takip Et'}</span>
+                </button>
 
-                  {installed && isDownloadable && (
-                    <button
-                      type="button"
-                      onClick={() => toggleAutoUpdateApp(app)}
-                      title={
-                        autoUpdating
-                          ? 'Arka plan otomatik güncellemeyi kapat'
-                          : 'Uygulama kapalıyken yeni güncellemeleri otomatik kur'
-                      }
-                      className={`px-3.5 py-2 rounded-full border text-xs font-semibold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
-                        autoUpdating
-                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
-                          : 'bg-inner border-subtle hover:bg-card-hover text-secondary hover:text-primary'
-                      }`}
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>{autoUpdating ? 'Oto-Güncelle Açık' : 'Oto-Güncelle'}</span>
-                    </button>
-                  )}
-
-                  {installed && rollbackRelease && isDownloadable && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setActionNotice(null);
-                        void runWithProcessGuard('Sürüm Geri Alma', () => rollbackApp(app));
-                      }}
-                      title={`Önceki sürüme dön: v${rollbackRelease.version}`}
-                      className="px-3.5 py-2 rounded-full border border-subtle bg-inner hover:bg-card-hover text-xs font-semibold text-secondary hover:text-primary flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
-                    >
-                      <Undo2 className="w-3.5 h-3.5 accent-text" />
-                      <span className="tabular-nums">Geri Al (v{rollbackRelease.version})</span>
-                    </button>
-                  )}
-
-                  {installed && (
-                    <>
+                {installed ? (
+                  <>
+                    {hasUpdate && (
                       <button
                         type="button"
                         disabled={!isDownloadable}
                         onClick={() => {
                           if (!isDownloadable) return;
-                          if (selectedIsDifferent) {
-                            void handleInstallSelected();
-                          } else {
-                            void runWithProcessGuard('Yeniden Kurulum', () => reinstallApp(app));
-                          }
+                          void runWithProcessGuard('Güncelleme', () => updateApp(app));
                         }}
-                        className={`px-3.5 py-2 rounded-full border text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                        className={`px-5 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                           !isDownloadable
-                            ? 'bg-inner border-subtle text-muted cursor-not-allowed opacity-50'
-                            : selectedIsDifferent
-                            ? 'btn-primary-koza hover:opacity-90 cursor-pointer'
-                            : 'bg-inner border-subtle hover:bg-card-hover text-secondary hover:text-primary cursor-pointer'
+                            ? 'bg-inner text-muted cursor-not-allowed opacity-60'
+                            : 'btn-primary-koza hover:opacity-90 cursor-pointer'
                         }`}
                       >
-                        <RotateCcw className="w-3.5 h-3.5" />
+                        {!isDownloadable ? (
+                          <Ban className="w-3.5 h-3.5" />
+                        ) : (
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        )}
                         <span className="tabular-nums">
-                          {selectedIsDifferent && selectedRelease
-                            ? `v${selectedRelease.version} Kur`
-                            : 'Yeniden Kur'}
+                          {!isDownloadable ? 'İndirilemez' : `Güncelle · v${effectiveLatestVersion}`}
                         </span>
                       </button>
+                    )}
 
+                    {!hasUpdate && selectedIsDifferent && selectedRelease && (
                       <button
                         type="button"
-                        onClick={() => setShowUninstallConfirm((v) => !v)}
-                        className="px-3.5 py-2 rounded-full border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-xs font-semibold text-red-400 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                        disabled={!isDownloadable}
+                        onClick={() => {
+                          if (!isDownloadable) return;
+                          void handleInstallSelected();
+                        }}
+                        className="px-4 py-2.5 rounded-full btn-primary-koza hover:opacity-90 text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Kaldır</span>
+                        <Download className="w-3.5 h-3.5" />
+                        <span className="tabular-nums">v{selectedRelease.version} Kur</span>
                       </button>
+                    )}
 
+                    <button
+                      type="button"
+                      onClick={() => void handleLaunch()}
+                      className={`px-5 py-2.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                        hasUpdate || selectedIsDifferent
+                          ? 'bg-inner hover:bg-card-hover text-primary'
+                          : 'btn-primary-koza hover:opacity-90'
+                      }`}
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Aç</span>
+                    </button>
+
+                    {/* Overflow Actions Menu for Secondary Lifecycle Options */}
+                    <div ref={actionsMenuRef} className="relative shrink-0">
                       <button
                         type="button"
-                        onClick={() => void handleLaunch()}
-                        className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
-                          hasUpdate
-                            ? 'bg-inner border border-subtle hover:bg-card-hover text-primary'
-                            : 'btn-primary-koza hover:opacity-90'
+                        aria-label="Uygulama seçenekleri"
+                        aria-expanded={isActionsMenuOpen}
+                        aria-haspopup="menu"
+                        onClick={() => setIsActionsMenuOpen((v) => !v)}
+                        className={`h-9 w-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+                          isActionsMenuOpen
+                            ? 'accent-subtle accent-text'
+                            : 'bg-inner hover:bg-card-hover text-secondary hover:text-primary'
                         }`}
                       >
-                        <Play className="w-3.5 h-3.5" />
-                        <span>Aç</span>
+                        <MoreHorizontal className="w-4 h-4" />
                       </button>
-                    </>
-                  )}
 
-                  {hasUpdate && (
-                    <button
-                      type="button"
-                      disabled={!isDownloadable}
-                      onClick={() => {
-                        if (!isDownloadable) return;
-                        void runWithProcessGuard('Güncelleme', () => updateApp(app));
-                      }}
-                      className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                        !isDownloadable
-                          ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
-                          : 'btn-primary-koza hover:opacity-90 cursor-pointer'
-                      }`}
-                    >
-                      {!isDownloadable ? <Ban className="w-3.5 h-3.5" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                      <span className="tabular-nums">
-                        {!isDownloadable ? 'İndirilemez' : `Güncelle (v${effectiveLatestVersion})`}
-                      </span>
-                    </button>
-                  )}
+                      <AnimatePresence>
+                        {isActionsMenuOpen && (
+                          <motion.div
+                            role="menu"
+                            aria-label="Yönetim Seçenekleri"
+                            initial={{ opacity: 0, y: -6, scale: 0.98, filter: 'blur(4px)' }}
+                            animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                            exit={{ opacity: 0, y: -6, scale: 0.98, filter: 'blur(4px)' }}
+                            transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+                            className="absolute top-[calc(100%+8px)] right-0 w-56 rounded-2xl bg-modal border border-subtle shadow-2xl p-1.5 space-y-0.5 z-50"
+                          >
+                            {isDownloadable && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  toggleAutoUpdateApp(app);
+                                  setIsActionsMenuOpen(false);
+                                }}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-primary hover:bg-card-hover flex items-center justify-between gap-2 cursor-pointer"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <Sparkles className="w-3.5 h-3.5 accent-text shrink-0" />
+                                  <span>Otomatik Güncelle</span>
+                                </span>
+                                <span
+                                  className={`text-[10px] font-semibold ${
+                                    autoUpdating ? 'text-emerald-400' : 'text-muted'
+                                  }`}
+                                >
+                                  {autoUpdating ? 'Açık' : 'Kapalı'}
+                                </span>
+                              </button>
+                            )}
 
-                  {!installed && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!isDownloadable) return;
-                        void handleInstallSelected();
-                      }}
-                      disabled={!isDownloadable || !preferredAsset}
-                      className={`px-5 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                        !isDownloadable
-                          ? 'bg-inner border border-subtle text-muted cursor-not-allowed opacity-60'
-                          : 'btn-primary-koza hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
-                      }`}
-                    >
-                      {!isDownloadable ? <Ban className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
-                      <span className="tabular-nums">
-                        {!isDownloadable
-                          ? 'İndirilemez'
-                          : selectedRelease
-                          ? `${platformInfo.isDesktop ? 'Kur' : 'İndir ve Kur'} (v${selectedRelease.version})`
-                          : 'İndir ve Kur'}
-                      </span>
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+                            {isDownloadable && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setIsActionsMenuOpen(false);
+                                  if (selectedIsDifferent) {
+                                    void handleInstallSelected();
+                                  } else {
+                                    void runWithProcessGuard('Yeniden Kurulum', () =>
+                                      reinstallApp(app)
+                                    );
+                                  }
+                                }}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-primary hover:bg-card-hover flex items-center gap-2 cursor-pointer"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-secondary shrink-0" />
+                                <span className="tabular-nums">
+                                  {selectedIsDifferent && selectedRelease
+                                    ? `v${selectedRelease.version} Sürümünü Kur`
+                                    : 'Yeniden Kur'}
+                                </span>
+                              </button>
+                            )}
 
-            {/* Row 2: Release Channel Switcher (only when multiple channels exist on GitHub) + Filtered Version Selector */}
-            {app.releases.length > 0 && isDownloadable && !task && (
-              <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2">
-                {showChannelSwitcher && (
-                  <div
-                    role="radiogroup"
-                    aria-label="Yayın Kanalı"
-                    className="koza-nav-capsule inline-flex items-center gap-0.5 p-1 rounded-full bg-island border border-subtle shadow-sm shrink-0"
-                  >
-                    <span className="pl-2 pr-1 text-muted flex items-center" aria-hidden="true">
-                      <GitBranch className="w-3.5 h-3.5 accent-text" />
-                    </span>
-                    {availableChannels.map((ch) => {
-                      const isChannelActive = activeChannel === ch;
-                      const label =
-                        ch === 'beta'
-                          ? channelCounts.beta > 0
-                            ? `Beta (${channelCounts.beta})`
-                            : 'Beta'
-                          : ch === 'nightly'
-                          ? channelCounts.nightly > 0
-                            ? `Nightly (${channelCounts.nightly})`
-                            : 'Nightly'
-                          : ch === 'rc'
-                          ? channelCounts.rc > 0
-                            ? `RC (${channelCounts.rc})`
-                            : 'RC'
-                          : 'Kararlı';
-                      return (
-                        <button
-                          key={ch}
-                          type="button"
-                          role="radio"
-                          aria-checked={isChannelActive}
-                          onClick={() => handleChannelChange(ch)}
-                          className={`relative px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors duration-200 select-none whitespace-nowrap cursor-pointer outline-none ${
-                            isChannelActive
-                              ? 'text-white font-bold'
-                              : 'text-secondary hover:text-primary hover:bg-card-hover/40'
-                          }`}
-                        >
-                          {isChannelActive && (
-                            <motion.div
-                              layoutId="detailChannelIndicator"
-                              className="absolute inset-0 rounded-full shadow-sm nav-indicator"
-                              style={{ backgroundColor: 'var(--accent)' }}
-                              transition={{
-                                type: 'spring',
-                                stiffness: 450,
-                                damping: 32,
+                            {rollbackRelease && isDownloadable && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setIsActionsMenuOpen(false);
+                                  setActionNotice(null);
+                                  void runWithProcessGuard('Sürüm Geri Alma', () =>
+                                    rollbackApp(app)
+                                  );
+                                }}
+                                className="w-full px-3 py-2 rounded-xl text-left text-xs font-medium text-primary hover:bg-card-hover flex items-center gap-2 cursor-pointer"
+                              >
+                                <Undo2 className="w-3.5 h-3.5 accent-text shrink-0" />
+                                <span className="tabular-nums">
+                                  Geri Al (v{rollbackRelease.version})
+                                </span>
+                              </button>
+                            )}
+
+                            <div className="my-1 border-t border-subtle" />
+
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setIsActionsMenuOpen(false);
+                                setShowUninstallConfirm((v) => !v);
                               }}
-                            />
-                          )}
-                          <span className="relative z-10">{label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Custom Styled Koru Version Dropdown */}
-                <div ref={versionMenuRef} className="relative shrink-0">
+                              className="w-full px-3 py-2 rounded-xl text-left text-xs font-semibold text-red-400 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                              <span>Uygulamayı Kaldır</span>
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </>
+                ) : (
                   <button
                     type="button"
-                    aria-label="Kurulacak sürümü seç"
-                    aria-expanded={isVersionMenuOpen}
-                    aria-haspopup="listbox"
-                    onClick={() => setIsVersionMenuOpen((v) => !v)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors cursor-pointer whitespace-nowrap ${
-                      isVersionMenuOpen || selectedIsCustomVersion
-                        ? 'accent-subtle accent-border text-primary'
-                        : 'bg-inner border-subtle hover:bg-card-hover hover:border-hover text-primary'
+                    onClick={() => {
+                      if (!isDownloadable) return;
+                      void handleInstallSelected();
+                    }}
+                    disabled={!isDownloadable || !preferredAsset}
+                    className={`px-5 py-2.5 rounded-full text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 ${
+                      !isDownloadable
+                        ? 'bg-inner text-muted cursor-not-allowed opacity-60'
+                        : 'btn-primary-koza hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer'
                     }`}
                   >
-                    <Tag className="w-3.5 h-3.5 accent-text shrink-0" />
-                    <span className="text-[11px] font-semibold text-muted">Sürüm:</span>
-                    <span className="font-mono font-bold tabular-nums text-primary">
-                      {selectedRelease?.tag || `v${effectiveLatestVersion}`}
-                    </span>
-                    {selectedRelease && getReleaseChannelKind(selectedRelease) === 'beta' ? (
-                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 border border-amber-500/35 text-amber-300">
-                        Beta
-                      </span>
-                    ) : selectedRelease && getReleaseChannelKind(selectedRelease) === 'nightly' ? (
-                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-500/15 border border-violet-500/35 text-violet-300">
-                        Nightly
-                      </span>
-                    ) : selectedRelease && getReleaseChannelKind(selectedRelease) === 'rc' ? (
-                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-sky-500/15 border border-sky-500/35 text-sky-300">
-                        RC
-                      </span>
+                    {!isDownloadable ? (
+                      <Ban className="w-3.5 h-3.5" />
                     ) : (
-                      channelLatestRelease?.tag === selectedRelease?.tag && (
-                        <span className="text-[10px] font-semibold accent-text">Güncel</span>
-                      )
+                      <Download className="w-3.5 h-3.5" />
                     )}
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-muted transition-transform duration-150 ${
-                        isVersionMenuOpen ? 'rotate-180 accent-text' : ''
-                      }`}
-                    />
+                    <span className="tabular-nums">
+                      {!isDownloadable
+                        ? 'İndirilemez'
+                        : selectedIsCustomVersion && selectedRelease
+                        ? `v${selectedRelease.version} Kur`
+                        : platformInfo.isDesktop
+                        ? 'Kur'
+                        : 'İndir ve Kur'}
+                    </span>
                   </button>
-
-                  <AnimatePresence>
-                    {isVersionMenuOpen && (
-                      <motion.div
-                        role="listbox"
-                        aria-label="Mevcut Sürümler"
-                        initial={{ opacity: 0, y: -6, scale: 0.98, filter: 'blur(4px)' }}
-                        animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-                        exit={{ opacity: 0, y: -6, scale: 0.98, filter: 'blur(4px)' }}
-                        transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                        className="absolute top-[calc(100%+8px)] left-0 sm:left-auto sm:right-0 w-64 sm:w-72 rounded-2xl bg-modal border border-subtle shadow-2xl overflow-hidden z-50"
-                      >
-                        <div className="px-3 py-2 border-b border-subtle bg-card/50 flex items-center justify-between gap-2">
-                          <span className="text-[11px] font-bold text-primary">
-                            {activeChannel === 'beta'
-                              ? 'Beta Sürümler'
-                              : activeChannel === 'nightly'
-                              ? 'Nightly Sürümler'
-                              : activeChannel === 'rc'
-                              ? 'RC Sürümler'
-                              : 'Kararlı Sürümler'}
-                          </span>
-                          <span className="text-[10px] font-mono text-muted tabular-nums">
-                            {channelReleases.length} sürüm
-                          </span>
-                        </div>
-
-                        <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
-                          {channelReleases.map((rel) => {
-                            const isSel = rel.tag === selectedRelease?.tag;
-                            const isLatestRel = channelLatestRelease?.tag === rel.tag;
-                            const relChannel = getReleaseChannelKind(rel);
-                            const isInstalledRel =
-                              installed && compareSemver(rel.version, installed.version) === 0;
-                            return (
-                              <button
-                                key={rel.tag}
-                                type="button"
-                                role="option"
-                                aria-selected={isSel}
-                                onClick={() => {
-                                  setSelectedTag(rel.tag);
-                                  setIsVersionMenuOpen(false);
-                                }}
-                                className={`w-full text-left px-2.5 py-1.5 rounded-xl border transition-colors cursor-pointer flex items-center justify-between gap-2 ${
-                                  isSel
-                                    ? 'accent-subtle accent-border text-primary'
-                                    : 'border-transparent hover:bg-card-hover text-secondary hover:text-primary'
-                                }`}
-                              >
-                                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                  <span className="text-xs font-mono font-bold text-primary tabular-nums">
-                                    {rel.tag}
-                                  </span>
-                                  {relChannel === 'beta' && (
-                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 border border-amber-500/35 text-amber-300">
-                                      Beta
-                                    </span>
-                                  )}
-                                  {relChannel === 'nightly' && (
-                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-500/15 border border-violet-500/35 text-violet-300">
-                                      Nightly
-                                    </span>
-                                  )}
-                                  {relChannel === 'rc' && (
-                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-sky-500/15 border border-sky-500/35 text-sky-300">
-                                      RC
-                                    </span>
-                                  )}
-                                  {isLatestRel && (
-                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold accent-subtle accent-text border accent-border">
-                                      Güncel
-                                    </span>
-                                  )}
-                                  {isInstalledRel && (
-                                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 border border-emerald-500/35 text-emerald-400">
-                                      Kurulu
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="text-[10px] font-mono text-muted tabular-nums">
-                                    {formatTurkishDate(rel.publishedAt)}
-                                  </span>
-                                  {isSel && <Check className="w-3.5 h-3.5 accent-text shrink-0" />}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        <div className="p-1.5 border-t border-subtle bg-card/40">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsVersionMenuOpen(false);
-                              setActiveTab('releases');
-                            }}
-                            className="w-full px-2.5 py-1.5 rounded-xl text-[11px] font-semibold accent-text hover:bg-card-hover flex items-center justify-between cursor-pointer"
-                          >
-                            <span>Sürüm Notları &amp; Dosyalar</span>
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
+                )}
+              </>
             )}
           </div>
         </div>
 
+        {/* Structured Scannable Metadata & Version/Channel Bar */}
+        <div className="relative z-10 pt-4 border-t border-subtle/80 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
+            {/* Durum */}
+            <div className="space-y-0.5">
+              <span className="text-[11px] font-medium text-muted block">Durum</span>
+              {installed ? (
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="tabular-nums">Kurulu · v{installed.version}</span>
+                  {installed.sha256Verified && (
+                    <span
+                      title={
+                        installed.sha256 ? `SHA-256: ${installed.sha256}` : 'SHA-256 doğrulandı'
+                      }
+                      className="inline-flex items-center gap-1 text-[11px] text-emerald-300/90"
+                    >
+                      <KeyRound className="w-3 h-3 shrink-0" />
+                      <span>SHA-256</span>
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-xs font-semibold text-primary inline-flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 accent-text shrink-0" />
+                  <span>{isComingSoon ? 'Yakında Yayınlanacak' : 'Kurulmaya Hazır'}</span>
+                </span>
+              )}
+            </div>
+
+            {/* Uyumluluk */}
+            <div className="space-y-0.5" title={compatibility.summary}>
+              <span className="text-[11px] font-medium text-muted block">Uyumluluk</span>
+              <span
+                className={`text-xs font-semibold inline-flex items-center gap-1.5 ${
+                  compatibility.status === 'compatible'
+                    ? 'text-emerald-400'
+                    : compatibility.status === 'partial'
+                    ? 'text-amber-400'
+                    : 'text-red-400'
+                }`}
+              >
+                {compatibility.status === 'compatible' ? (
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                ) : (
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>{compatibility.badgeLabel}</span>
+              </span>
+            </div>
+
+            {/* Yayın Tarihi */}
+            {effectiveReleaseDate && (
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-medium text-muted block">Yayın Tarihi</span>
+                <span className="text-xs font-semibold text-primary tabular-nums block">
+                  {formatTurkishDate(effectiveReleaseDate)}
+                </span>
+              </div>
+            )}
+
+            {/* İndirme Sayısı */}
+            {typeof app.totalDownloads === 'number' && app.totalDownloads > 0 && (
+              <div
+                className="space-y-0.5"
+                title="GitHub tüm sürümler toplam indirme sayısı"
+              >
+                <span className="text-[11px] font-medium text-muted block">Toplam İndirme</span>
+                <span className="text-xs font-semibold text-primary tabular-nums inline-flex items-center gap-1">
+                  <Download className="w-3 h-3 accent-text shrink-0" />
+                  <span>{formatDownloadCount(app.totalDownloads)}</span>
+                </span>
+              </div>
+            )}
+
+            {/* Paket Kimliği */}
+            <div className="space-y-0.5">
+              <span className="text-[11px] font-medium text-muted block">Paket</span>
+              <span className="text-xs font-mono text-secondary block">{app.id}</span>
+            </div>
+          </div>
+
+          {/* Kanal & Sürüm Seçici */}
+          {app.releases.length > 0 && isDownloadable && !task && (
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              {showChannelSwitcher && (
+                <div
+                  role="radiogroup"
+                  aria-label="Yayın Kanalı"
+                  className="inline-flex items-center gap-0.5 p-1 rounded-xl bg-inner/85 shrink-0"
+                >
+                  {availableChannels.map((ch) => {
+                    const isChannelActive = activeChannel === ch;
+                    const label =
+                      ch === 'beta'
+                        ? channelCounts.beta > 0
+                          ? `Beta (${channelCounts.beta})`
+                          : 'Beta'
+                        : ch === 'nightly'
+                        ? channelCounts.nightly > 0
+                          ? `Nightly (${channelCounts.nightly})`
+                          : 'Nightly'
+                        : ch === 'rc'
+                        ? channelCounts.rc > 0
+                          ? `RC (${channelCounts.rc})`
+                          : 'RC'
+                        : 'Kararlı';
+                    return (
+                      <button
+                        key={ch}
+                        type="button"
+                        role="radio"
+                        aria-checked={isChannelActive}
+                        onClick={() => handleChannelChange(ch)}
+                        className={`relative px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors duration-150 select-none whitespace-nowrap cursor-pointer outline-none ${
+                          isChannelActive
+                            ? 'text-white font-bold'
+                            : 'text-secondary hover:text-primary'
+                        }`}
+                      >
+                        {isChannelActive && (
+                          <motion.div
+                            layoutId="detailChannelIndicator"
+                            className="absolute inset-0 rounded-lg nav-indicator"
+                            style={{ backgroundColor: 'var(--accent)' }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 450,
+                              damping: 32,
+                            }}
+                          />
+                        )}
+                        <span className="relative z-10">{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Clean Version Dropdown Trigger */}
+              <div ref={versionMenuRef} className="relative shrink-0">
+                <button
+                  type="button"
+                  aria-label="Kurulacak sürümü seç"
+                  aria-expanded={isVersionMenuOpen}
+                  aria-haspopup="listbox"
+                  onClick={() => setIsVersionMenuOpen((v) => !v)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs transition-colors cursor-pointer whitespace-nowrap ${
+                    isVersionMenuOpen || selectedIsCustomVersion
+                      ? 'accent-subtle text-primary'
+                      : 'bg-inner/85 hover:bg-card-hover text-primary'
+                  }`}
+                >
+                  <span className="text-[11px] text-muted font-medium">Sürüm</span>
+                  <span className="font-mono font-bold tabular-nums text-primary">
+                    {selectedRelease?.tag || `v${effectiveLatestVersion}`}
+                  </span>
+                  {selectedRelease && getReleaseChannelKind(selectedRelease) === 'beta' ? (
+                    <span className="text-[10px] font-semibold text-amber-300">Beta</span>
+                  ) : selectedRelease && getReleaseChannelKind(selectedRelease) === 'nightly' ? (
+                    <span className="text-[10px] font-semibold text-violet-300">Nightly</span>
+                  ) : selectedRelease && getReleaseChannelKind(selectedRelease) === 'rc' ? (
+                    <span className="text-[10px] font-semibold text-sky-300">RC</span>
+                  ) : (
+                    channelLatestRelease?.tag === selectedRelease?.tag && (
+                      <span className="text-[10px] font-semibold accent-text">Güncel</span>
+                    )
+                  )}
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-muted transition-transform duration-150 ${
+                      isVersionMenuOpen ? 'rotate-180 accent-text' : ''
+                    }`}
+                  />
+                </button>
+
+                <AnimatePresence>
+                  {isVersionMenuOpen && (
+                    <motion.div
+                      role="listbox"
+                      aria-label="Mevcut Sürümler"
+                      initial={{ opacity: 0, y: -6, scale: 0.98, filter: 'blur(4px)' }}
+                      animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98, filter: 'blur(4px)' }}
+                      transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                      className="absolute top-[calc(100%+8px)] left-0 sm:left-auto sm:right-0 w-64 sm:w-72 rounded-2xl bg-modal border border-subtle shadow-2xl overflow-hidden z-50"
+                    >
+                      <div className="px-3 py-2 border-b border-subtle bg-card/50 flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-primary">
+                          {activeChannel === 'beta'
+                            ? 'Beta Sürümler'
+                            : activeChannel === 'nightly'
+                            ? 'Nightly Sürümler'
+                            : activeChannel === 'rc'
+                            ? 'RC Sürümler'
+                            : 'Kararlı Sürümler'}
+                        </span>
+                        <span className="text-[10px] font-mono text-muted tabular-nums">
+                          {channelReleases.length} sürüm
+                        </span>
+                      </div>
+
+                      <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5">
+                        {channelReleases.map((rel) => {
+                          const isSel = rel.tag === selectedRelease?.tag;
+                          const isLatestRel = channelLatestRelease?.tag === rel.tag;
+                          const relChannel = getReleaseChannelKind(rel);
+                          const isInstalledRel =
+                            installed && compareSemver(rel.version, installed.version) === 0;
+                          return (
+                            <button
+                              key={rel.tag}
+                              type="button"
+                              role="option"
+                              aria-selected={isSel}
+                              onClick={() => {
+                                setSelectedTag(rel.tag);
+                                setIsVersionMenuOpen(false);
+                              }}
+                              className={`w-full text-left px-2.5 py-1.5 rounded-xl border transition-colors cursor-pointer flex items-center justify-between gap-2 ${
+                                isSel
+                                  ? 'accent-subtle accent-border text-primary'
+                                  : 'border-transparent hover:bg-card-hover text-secondary hover:text-primary'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                <span className="text-xs font-mono font-bold text-primary tabular-nums">
+                                  {rel.tag}
+                                </span>
+                                {relChannel === 'beta' && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 border border-amber-500/35 text-amber-300">
+                                    Beta
+                                  </span>
+                                )}
+                                {relChannel === 'nightly' && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-violet-500/15 border border-violet-500/35 text-violet-300">
+                                    Nightly
+                                  </span>
+                                )}
+                                {relChannel === 'rc' && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-sky-500/15 border border-sky-500/35 text-sky-300">
+                                    RC
+                                  </span>
+                                )}
+                                {isLatestRel && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold accent-subtle accent-text border accent-border">
+                                    Güncel
+                                  </span>
+                                )}
+                                {isInstalledRel && (
+                                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 border border-emerald-500/35 text-emerald-400">
+                                    Kurulu
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span className="text-[10px] font-mono text-muted tabular-nums">
+                                  {formatTurkishDate(rel.publishedAt)}
+                                </span>
+                                {isSel && <Check className="w-3.5 h-3.5 accent-text shrink-0" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="p-1.5 border-t border-subtle bg-card/40">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsVersionMenuOpen(false);
+                            setActiveTab('releases');
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-xl text-[11px] font-semibold accent-text hover:bg-card-hover flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Sürüm Notları &amp; Dosyalar</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Active Task Progress */}
         {task && (
-          <div className="relative z-10 p-4 rounded-2xl bg-inner border border-subtle space-y-2">
+          <div className="relative z-10 p-4 rounded-2xl bg-inner space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className={`font-semibold ${task.phase === 'paused' ? 'text-amber-400' : 'accent-text'}`}>
                 {task.message}
@@ -1094,7 +1162,7 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
         </section>
       )}
 
-      {/* Navbar-Style Section Navigation Tabs */}
+      {/* Section Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-subtle pb-3">
         <div
           className="koza-nav-capsule flex items-center gap-1 p-1.5 rounded-full bg-island border border-subtle shadow-sm"
@@ -1166,15 +1234,6 @@ export function AppDetailView({ app, backLabel = 'Mağazaya Dön', onBack }: App
             );
           })}
         </div>
-
-        {selectedRelease && (
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span>Aktif Sürüm:</span>
-            <span className="px-2.5 py-1 rounded-full bg-card border border-subtle font-mono font-semibold text-primary tabular-nums">
-              {selectedRelease.tag}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Animated Tab Content (Matches App.tsx / Navbar transitions) */}

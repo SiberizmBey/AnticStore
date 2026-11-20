@@ -18,6 +18,7 @@ import type { NotificationKind, StoreNotification } from '../types';
 
 interface NotificationPopoverProps {
   onSelectAppById?: (appId: string) => void;
+  placement?: 'top' | 'bottom';
 }
 
 function formatNotificationTime(iso: string): string {
@@ -46,7 +47,10 @@ function getKindIcon(kind: NotificationKind) {
   }
 }
 
-export function NotificationPopover({ onSelectAppById }: NotificationPopoverProps) {
+export function NotificationPopover({
+  onSelectAppById,
+  placement = 'bottom',
+}: NotificationPopoverProps) {
   const {
     notifications,
     unreadNotificationsCount,
@@ -122,11 +126,15 @@ export function NotificationPopover({ onSelectAppById }: NotificationPopoverProp
           <motion.div
             role="dialog"
             aria-label="Bildirim Merkezi"
-            initial={{ opacity: 0, y: -8, scale: 0.98, filter: 'blur(4px)' }}
+            initial={{ opacity: 0, y: placement === 'top' ? 10 : -8, scale: 0.98, filter: 'blur(4px)' }}
             animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: -8, scale: 0.98, filter: 'blur(4px)' }}
+            exit={{ opacity: 0, y: placement === 'top' ? 10 : -8, scale: 0.98, filter: 'blur(4px)' }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute top-[calc(100%+12px)] right-0 w-[calc(100vw-2rem)] sm:w-[370px] max-h-[calc(100vh-6rem)] flex flex-col z-50 rounded-3xl bg-modal border border-subtle shadow-2xl overflow-hidden"
+            className={`${
+              placement === 'top'
+                ? 'fixed bottom-[4.75rem] right-4 sm:absolute sm:bottom-[calc(100%+14px)] sm:right-0 sm:top-auto'
+                : 'absolute top-[calc(100%+12px)] right-0'
+            } w-[calc(100vw-2rem)] sm:w-[370px] max-h-[calc(100vh-6rem)] flex flex-col z-50 rounded-3xl bg-modal border border-subtle shadow-2xl overflow-hidden`}
           >
             {/* Header */}
             <div className="px-4 py-3.5 border-b border-subtle flex items-center justify-between gap-2 bg-card/50 shrink-0">

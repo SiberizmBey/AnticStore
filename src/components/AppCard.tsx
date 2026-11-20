@@ -18,6 +18,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
 import { AppIcon } from './AppIcon';
+import { AppCover } from './AppCover';
 import { AppHoverPreview } from './AppHoverPreview';
 import {
   checkInstalledMirrorStatus,
@@ -185,7 +186,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       onMouseLeave={clearHoverPreview}
       onMouseDown={clearHoverPreview}
       onMouseMove={handleMouseMove}
-      className={`group relative overflow-hidden flex flex-col justify-between p-5 rounded-3xl bg-card border ${
+      className={`group relative overflow-hidden flex flex-col justify-between rounded-3xl bg-card border ${
         hasRedSpotlight
           ? 'card-danger-spotlight'
           : isComingSoon
@@ -195,15 +196,26 @@ export function AppCard({ app, onSelect }: AppCardProps) {
           : 'border-card hover:border-hover'
       } hover:bg-card-hover transition-all duration-150 cursor-pointer select-none`}
     >
+      {/* Top Edge-to-Edge Cover Header */}
+      <AppCover
+        name={app.name}
+        coverUrl={app.coverUrl}
+        screenshots={app.screenshots}
+        iconUrl={app.iconUrl}
+        variant="card"
+        grayscale={!isDownloadable}
+        className="h-[100px] w-full shrink-0"
+      />
+
       {hasRedSpotlight ? (
         <>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 card-danger-spotlight-aura transition-opacity duration-300"
+            className="pointer-events-none absolute inset-0 z-[1] card-danger-spotlight-aura transition-opacity duration-300"
           />
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 card-danger-spotlight-cursor transition-opacity duration-300"
+            className="pointer-events-none absolute inset-0 z-[1] opacity-0 group-hover:opacity-100 card-danger-spotlight-cursor transition-opacity duration-300"
           />
         </>
       ) : (
@@ -211,28 +223,30 @@ export function AppCard({ app, onSelect }: AppCardProps) {
           <>
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 card-update-spotlight-aura transition-opacity duration-300"
+              className="pointer-events-none absolute inset-0 z-[1] card-update-spotlight-aura transition-opacity duration-300"
             />
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 card-update-spotlight-cursor transition-opacity duration-300"
+              className="pointer-events-none absolute inset-0 z-[1] opacity-0 group-hover:opacity-100 card-update-spotlight-cursor transition-opacity duration-300"
             />
           </>
         )
       )}
-      <div className="relative z-10">
+
+      <div className="relative z-10 px-5 pb-5 -mt-7 flex-1 flex flex-col justify-between">
+      <div>
         {/* Card Header */}
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-end justify-between gap-3 mb-3">
+          <div className="flex items-end gap-3 min-w-0">
             <AppIcon
               name={app.name}
               iconUrl={app.iconUrl}
               cacheKey={app.syncedAt}
               grayscale={!isDownloadable}
-              className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-modal p-1.5 transition-transform duration-200 group-hover:scale-105"
+              className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-subtle bg-modal p-1.5 shadow-lg transition-transform duration-200 group-hover:scale-105"
               imageClassName="h-full w-full object-contain rounded-xl"
             />
-            <div className="min-w-0">
+            <div className="min-w-0 pt-2">
               <div className="flex items-center gap-2 min-w-0">
                 <h3
                   className={`font-bold text-sm sm:text-base tracking-tight transition-colors truncate ${
@@ -266,7 +280,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             </div>
           </div>
 
-          <span className="p-1.5 rounded-full text-muted group-hover:text-primary group-hover:bg-card transition-colors shrink-0">
+          <span className="p-1.5 rounded-full text-muted group-hover:text-primary group-hover:bg-card transition-colors shrink-0 mb-0.5">
             <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
           </span>
         </div>
@@ -410,7 +424,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
       </div>
 
       {/* Card Footer */}
-      <div className="relative z-10 pt-3 border-t border-subtle flex items-center justify-between gap-2">
+      <div className="pt-3 border-t border-subtle flex items-center justify-between gap-2">
         <div className="text-[11px] font-medium truncate">
           {isUnofficialVersion && installed ? (
             <span className="text-red-400 font-bold flex items-center gap-1.5 tabular-nums">
@@ -556,6 +570,7 @@ export function AppCard({ app, onSelect }: AppCardProps) {
             )}
           </button>
         </div>
+      </div>
       </div>
     </motion.div>
     <AnimatePresence>

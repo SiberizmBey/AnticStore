@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Download, HardDrive, Cpu, ShieldCheck, ShieldAlert, ArrowRight, Sparkles, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { AppIcon } from './AppIcon';
-import { useCachedMedia } from '../services/mediaCache';
+import { AppCover } from './AppCover';
 import { useStore } from '../context/StoreContext';
 import {
   checkInstalledMirrorStatus,
@@ -65,11 +65,6 @@ export function AppHoverPreview({ app, anchorRect }: AppHoverPreviewProps) {
     [app, platformInfo, effectiveRelease]
   );
 
-  const firstScreenshot = app.screenshots && app.screenshots.length > 0 ? app.screenshots[0] : undefined;
-  const { src: screenshotSrc, failed: screenshotFailed, markFailed: markScreenshotFailed } =
-    useCachedMedia(firstScreenshot, 0, { maxDimension: 560, immediateFallback: true });
-
-  const hasScreenshot = Boolean(firstScreenshot && screenshotSrc && !screenshotFailed);
   const releaseNotesSnippet = useMemo(() => {
     const raw = (effectiveRelease?.notes || '').trim();
     if (!raw) return '';
@@ -80,8 +75,7 @@ export function AppHoverPreview({ app, anchorRect }: AppHoverPreviewProps) {
   }, [effectiveRelease?.notes]);
 
   const estimatedHeight =
-    260 +
-    (hasScreenshot ? 136 : 0) +
+    330 +
     (releaseNotesSnippet ? 88 : 0);
 
   const position = useMemo(() => {
@@ -157,19 +151,30 @@ export function AppHoverPreview({ app, anchorRect }: AppHoverPreviewProps) {
       }}
       className="pointer-events-none select-none rounded-3xl bg-modal/95 backdrop-blur-xl border border-subtle shadow-2xl overflow-hidden"
     >
-      <div className="p-4 space-y-3">
-        {/* Compact Header */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
+      {/* Top Edge-to-Edge Cover Header */}
+      <AppCover
+        name={app.name}
+        coverUrl={app.coverUrl}
+        screenshots={app.screenshots}
+        iconUrl={app.iconUrl}
+        variant="preview"
+        grayscale={!isDownloadable}
+        className="h-28 w-full shrink-0"
+      />
+
+      <div className="relative z-10 px-4 pb-4 -mt-7 space-y-3">
+        {/* Compact Header Overlapping Cover Bottom */}
+        <div className="flex items-end justify-between gap-3">
+          <div className="flex items-end gap-2.5 min-w-0">
             <AppIcon
               name={app.name}
               iconUrl={app.iconUrl}
               cacheKey={app.syncedAt}
               grayscale={!isDownloadable}
-              className="w-10 h-10 rounded-xl bg-inner border border-subtle p-1 flex items-center justify-center overflow-hidden shrink-0"
-              imageClassName="w-full h-full object-contain rounded-lg"
+              className="w-11 h-11 rounded-2xl bg-modal border border-subtle p-1 shadow-lg flex items-center justify-center overflow-hidden shrink-0"
+              imageClassName="w-full h-full object-contain rounded-xl"
             />
-            <div className="min-w-0">
+            <div className="min-w-0 pt-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 <h4 className="text-sm font-bold text-primary truncate">{app.name}</h4>
                 {mirrorStatus.isUnofficial ? (
@@ -190,7 +195,7 @@ export function AppHoverPreview({ app, anchorRect }: AppHoverPreviewProps) {
             </div>
           </div>
 
-          <div className="text-right shrink-0">
+          <div className="text-right shrink-0 pb-0.5">
             <span className="text-xs font-mono font-bold text-primary tabular-nums block">
               v{effectiveVersion}
             </span>
@@ -201,23 +206,6 @@ export function AppHoverPreview({ app, anchorRect }: AppHoverPreviewProps) {
             )}
           </div>
         </div>
-
-        {/* Screenshot Preview */}
-        {hasScreenshot && (
-          <div className="relative h-32 w-full rounded-2xl overflow-hidden bg-inner border border-subtle">
-            <img
-              src={screenshotSrc}
-              alt={`${app.name} ekran görüntüsü`}
-              onError={markScreenshotFailed}
-              className="w-full h-full object-cover"
-            />
-            {app.screenshots && app.screenshots.length > 1 && (
-              <span className="absolute right-2 bottom-2 px-2 py-0.5 rounded-full bg-black/70 backdrop-blur-md text-[10px] font-mono font-semibold text-white">
-                {app.screenshots.length} görsel
-              </span>
-            )}
-          </div>
-        )}
 
         {/* Description */}
         <p className="text-xs text-secondary leading-relaxed line-clamp-3">

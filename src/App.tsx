@@ -7,7 +7,7 @@ import { StoreView } from './views/StoreView';
 import { InstalledView } from './views/InstalledView';
 import { SettingsView } from './views/SettingsView';
 import { AppDetailView } from './views/AppDetailView';
-import { SignalsPopover } from './components/SignalsPopover';
+import { BottomUtilityDock } from './components/BottomUtilityDock';
 import { ToastContainer } from './components/ToastContainer';
 import { PrerequisitePromptModal } from './components/PrerequisitePromptModal';
 import { checkInstalledMirrorStatus, isUpdateAvailable } from './utils/semver';
@@ -161,7 +161,6 @@ function KoruShell() {
       <Navbar
         currentTab={currentTab}
         onSelectTab={handleSelectTab}
-        onSelectAppById={handleSelectAppById}
       />
 
       <main className="relative z-10 flex-1 w-full mx-auto pt-2 px-3 sm:px-6 lg:px-8 pb-20">
@@ -194,7 +193,7 @@ function KoruShell() {
       </main>
 
       <ToastContainer onSelectAppById={handleSelectAppById} />
-      <SignalsPopover onSelectAppById={handleSelectAppById} />
+      <BottomUtilityDock onSelectAppById={handleSelectAppById} />
       <PrerequisitePromptModal />
     </div>
   );

@@ -61,6 +61,7 @@ interface GitHubRepoBundle {
   } | null;
   anticManifest?: Partial<CatalogAppEntry> | null;
   iconUrl?: string | null;
+  coverUrl?: string | null;
 }
 
 export function normalizeGitHubRepoInput(input: string): string | null {
@@ -123,12 +124,17 @@ async function fetchGitHubBundleDesktop(owner: string, repo: string): Promise<Gi
     (typeof anticManifest?.iconUrl === 'string' ? anticManifest.iconUrl : null) ||
     `https://raw.githubusercontent.com/${owner}/${repo}/main/public/assets/img/icon.png`;
 
+  const coverUrl =
+    (typeof anticManifest?.coverUrl === 'string' ? anticManifest.coverUrl : null) ||
+    (typeof anticManifest?.bannerUrl === 'string' ? anticManifest.bannerUrl : null);
+
   return {
     repo: repoInfo,
     releases: Array.isArray(releases) ? releases : [],
     packageJson,
     anticManifest,
     iconUrl,
+    coverUrl,
   };
 }
 
@@ -424,6 +430,13 @@ function mapBundleToStoreApp(
     manifest.iconUrl ||
     bundle.iconUrl ||
     repoInfo.owner?.avatar_url;
+  const coverUrl =
+    override?.coverUrl ||
+    override?.bannerUrl ||
+    manifest.coverUrl ||
+    manifest.bannerUrl ||
+    bundle.coverUrl ||
+    undefined;
   const screenshots = override?.screenshots || manifest.screenshots;
 
   const overrideDownloadable = parseDownloadableFlag(override?.downloadable);
@@ -479,6 +492,7 @@ function mapBundleToStoreApp(
     summary,
     description,
     iconUrl: iconUrl || undefined,
+    coverUrl: coverUrl || undefined,
     screenshots: Array.isArray(screenshots)
       ? screenshots.filter((url): url is string => typeof url === 'string')
       : [],
@@ -564,6 +578,7 @@ function mapDirectEntryToStoreApp(
     summary: entry.summary || 'Koru uygulaması',
     description: entry.description || entry.summary || 'Koru kataloğundan sunulan uygulama.',
     iconUrl: entry.iconUrl,
+    coverUrl: entry.coverUrl || entry.bannerUrl || undefined,
     screenshots: Array.isArray(entry.screenshots)
       ? entry.screenshots.filter((url): url is string => typeof url === 'string')
       : [],
@@ -641,17 +656,12 @@ async function fetchOfficialManifestDesktop(): Promise<RemoteCatalogManifest> {
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/main/catalog.json?t=${ts}`,
     `https://raw.githubusercontent.com/${OFFICIAL_STORE_REPO}/master/catalog.json?t=${ts}`,
   ];
-  const localTime = Date.parse(localManifest.updatedAt || '') || 0;
 
   for (const url of candidates) {
     try {
       const data = await desktop.fetchJson<RemoteCatalogManifest>(url);
       if (data && Array.isArray(data.apps)) {
-        const remoteTime = Date.parse(data.updatedAt || '') || 0;
-        if (remoteTime > localTime) {
-          return mergeCatalogMetadataWithLocal(data, localManifest);
-        }
-        return localManifest;
+        return mergeCatalogMetadataWithLocal(data, localManifest);
       }
     } catch {
       // Try next candidate

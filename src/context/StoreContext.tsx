@@ -2011,6 +2011,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           setOfficialSource(source);
           setLastSyncedAt(new Date().toISOString());
           void preloadMediaUrls(syncedApps.map((a) => a.iconUrl), false, { maxDimension: 192 });
+          void preloadMediaUrls(
+            syncedApps.map((a) => a.coverUrl || a.screenshots?.[0]),
+            false,
+            { maxDimension: 960 }
+          );
           await refreshInstalled(syncedApps);
 
           const currentInstalled = installedMapRef.current;

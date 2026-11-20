@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, ImageOff, Maximize2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -74,6 +75,9 @@ export function ScreenshotGallery({
   useEffect(() => {
     if (!lightboxOpen) return;
 
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
@@ -88,7 +92,10 @@ export function ScreenshotGallery({
     };
 
     window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
   }, [lightboxOpen, goPrev, goNext]);
 
   if (count === 0) {
@@ -117,7 +124,7 @@ export function ScreenshotGallery({
               }
             }}
             aria-label={`${appName} ekran görüntüsü ${activeIndex + 1} — büyütmek için tıklayın`}
-            className={`relative aspect-video max-h-[240px] sm:max-h-[270px] w-full flex items-center justify-center overflow-hidden ${
+            className={`relative aspect-video w-full flex items-center justify-center overflow-hidden ${
               isActiveBroken ? 'cursor-default' : 'cursor-zoom-in'
             }`}
           >
@@ -145,7 +152,7 @@ export function ScreenshotGallery({
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.985 }}
                   transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                  className="w-full h-full object-contain bg-black/20 transition-transform duration-300 group-hover:scale-[1.015]"
+                  className="w-full h-full object-contain bg-inner transition-transform duration-300 group-hover:scale-[1.015]"
                 />
               ) : (
                 <motion.div
@@ -236,121 +243,125 @@ export function ScreenshotGallery({
         )}
       </div>
 
-      {/* Animated Lightbox */}
-      <AnimatePresence>
-        {lightboxOpen && resolvedStageSrc && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setLightboxOpen(false)}
-            className="fixed inset-0 z-[70] bg-black/88 backdrop-blur-xl flex flex-col justify-between p-4 sm:p-6 lg:p-10"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${appName} ekran görüntüsü önizlemesi`}
-          >
-            {/* Top Bar */}
-            <div
-              className="flex items-center justify-between gap-4 shrink-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-sm font-bold text-white truncate">{appName}</span>
-                <span className="text-xs font-mono tabular-nums text-white/60 shrink-0">
-                  {String(activeIndex + 1).padStart(2, '0')} / {String(count).padStart(2, '0')}
-                </span>
-              </div>
-
-              <button
-                type="button"
+      {/* Full-Viewport Portaled Lightbox */}
+      {typeof document !== 'undefined' &&
+        createPortal(
+          <AnimatePresence>
+            {lightboxOpen && resolvedStageSrc && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
                 onClick={() => setLightboxOpen(false)}
-                aria-label="Önizlemeyi kapat"
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="koza-window-interactive fixed inset-0 z-[120] bg-black/90 backdrop-blur-xl flex flex-col justify-between p-4 sm:p-6 lg:p-10"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${appName} ekran görüntüsü önizlemesi`}
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Center Zoomed Image */}
-            <div className="relative flex-1 min-h-0 flex items-center justify-center my-4">
-              {count > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    goPrev();
-                  }}
-                  aria-label="Önceki görsel"
-                  className="absolute left-0 sm:left-2 z-10 w-10 h-10 rounded-full bg-black/55 hover:bg-black/80 border border-white/15 text-white flex items-center justify-center transition-all cursor-pointer"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-              )}
-
-              <AnimatePresence mode="wait">
-                <motion.img
-                  key={`lightbox-${activeUrl}-${activeIndex}`}
-                  src={resolvedStageSrc}
-                  alt={`${appName} ekran görüntüsü ${activeIndex + 1}`}
-                  referrerPolicy="no-referrer"
+                {/* Top Bar */}
+                <div
+                  className="flex items-center justify-between gap-4 shrink-0"
                   onClick={(e) => e.stopPropagation()}
-                  initial={{ opacity: 0, scale: 0.88, filter: 'blur(6px)' }}
-                  animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                  exit={{ opacity: 0, scale: 0.92, filter: 'blur(6px)' }}
-                  transition={{ type: 'spring', stiffness: 360, damping: 30 }}
-                  className="max-h-full max-w-full rounded-2xl border border-white/10 shadow-2xl object-contain select-none"
-                />
-              </AnimatePresence>
-
-              {count > 1 && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    goNext();
-                  }}
-                  aria-label="Sonraki görsel"
-                  className="absolute right-0 sm:right-2 z-10 w-10 h-10 rounded-full bg-black/55 hover:bg-black/80 border border-white/15 text-white flex items-center justify-center transition-all cursor-pointer"
                 >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              )}
-            </div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-sm font-bold text-white truncate">{appName}</span>
+                    <span className="text-xs font-mono tabular-nums text-white/60 shrink-0">
+                      {String(activeIndex + 1).padStart(2, '0')} / {String(count).padStart(2, '0')}
+                    </span>
+                  </div>
 
-            {/* Bottom Thumbnail Switcher */}
-            {count > 1 && (
-              <div
-                className="flex items-center justify-center gap-2 overflow-x-auto pb-1 shrink-0"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {screenshots.map((shot, idx) => {
-                  const isSelected = idx === activeIndex;
-                  return (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxOpen(false)}
+                    aria-label="Önizlemeyi kapat"
+                    className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Center Zoomed Image */}
+                <div className="relative flex-1 min-h-0 flex items-center justify-center my-4">
+                  {count > 1 && (
                     <button
-                      key={`lb-thumb-${shot}-${idx}`}
                       type="button"
-                      onClick={() => setActiveIndex(idx)}
-                      aria-label={`Görsel ${idx + 1}`}
-                      className={`shrink-0 w-16 sm:w-20 aspect-video rounded-lg overflow-hidden border transition-all cursor-pointer ${
-                        isSelected
-                          ? 'border-accent opacity-100 scale-105'
-                          : 'border-white/15 opacity-45 hover:opacity-85'
-                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goPrev();
+                      }}
+                      aria-label="Önceki görsel"
+                      className="absolute left-0 sm:left-2 z-10 w-10 h-10 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center transition-all cursor-pointer"
                     >
-                      <CachedThumb
-                        url={shot}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
+                      <ChevronLeft className="w-5 h-5" />
                     </button>
-                  );
-                })}
-              </div>
+                  )}
+
+                  <AnimatePresence mode="wait">
+                    <motion.img
+                      key={`lightbox-${activeUrl}-${activeIndex}`}
+                      src={resolvedStageSrc}
+                      alt={`${appName} ekran görüntüsü ${activeIndex + 1}`}
+                      referrerPolicy="no-referrer"
+                      onClick={(e) => e.stopPropagation()}
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                      className="max-h-[calc(100vh-10rem)] max-w-[min(92vw,1440px)] rounded-2xl shadow-2xl object-contain select-none"
+                    />
+                  </AnimatePresence>
+
+                  {count > 1 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        goNext();
+                      }}
+                      aria-label="Sonraki görsel"
+                      className="absolute right-0 sm:right-2 z-10 w-10 h-10 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center transition-all cursor-pointer"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Bottom Thumbnail Switcher */}
+                {count > 1 && (
+                  <div
+                    className="flex items-center justify-center gap-2 overflow-x-auto pb-1 shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {screenshots.map((shot, idx) => {
+                      const isSelected = idx === activeIndex;
+                      return (
+                        <button
+                          key={`lb-thumb-${shot}-${idx}`}
+                          type="button"
+                          onClick={() => setActiveIndex(idx)}
+                          aria-label={`Görsel ${idx + 1}`}
+                          className={`shrink-0 w-16 sm:w-20 aspect-video rounded-lg overflow-hidden border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-accent opacity-100 scale-105'
+                              : 'border-white/15 opacity-45 hover:opacity-85'
+                          }`}
+                        >
+                          <CachedThumb
+                            url={shot}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </motion.div>
             )}
-          </motion.div>
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </>
   );
 }

@@ -49,6 +49,8 @@ export interface CatalogAppEntry {
   summary?: string;
   description?: string;
   iconUrl?: string;
+  coverUrl?: string;
+  bannerUrl?: string;
   websiteUrl?: string;
   screenshots?: string[];
   githubRepo?: string;
@@ -190,6 +192,7 @@ export interface StoreApp {
   summary: string;
   description: string;
   iconUrl?: string;
+  coverUrl?: string;
   screenshots?: string[];
   websiteUrl: string;
   repoFullName?: string;

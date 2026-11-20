@@ -33,7 +33,7 @@
             "summary": "Antic Valley resmi uygulama mağazası",
             "description": "Antic Valley'in uygulamarını keşfetmek, indirmek ve güncellemek için resmi uygulama mağazası.",
             "iconUrl": "./assets/img/icon.png",
-            "coverUrl": "./assets/img/icon.jpg",
+            "coverUrl": "./assets/img/icon.png",
             "websiteUrl": "https://koru.anticvalley.com.tr",
             "screenshots": [
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koru1.png",
@@ -72,7 +72,7 @@
             "category": "Eğlence",
             "catalog": "eglence",
             "summary": "Oyunlarınıza DLSS getiren optimizasyon ve performans aracı",
-            "description": "Antic Valley'in uygulamarını keşfetmek, indirmek ve güncellemek için resmi uygulama mağazası.",
+            "description": "Oyunlarınız için Multi Frame Generation ve OptiScaler gibi çeşitli araları kurmanızı kolaylaştıran Yonga, oyunlarınızın performansını artırmak ve görsel kalitesini iyileştirmek için tasarlanmış bir optimizasyon ve performans aracıdır.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/YongaRelease/refs/heads/main/program_logo.png",
             "coverUrl": "https://raw.githubusercontent.com/SiberizmBey/YongaRelease/refs/heads/main/program_logo.png",
             "websiteUrl": "https://yonga.anticvalley.com.tr",
@@ -110,7 +110,7 @@
             "summary": "Soundpad muadili açık kaynaklı ses paneli",
             "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
-            "coverUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/cover.png",
+            "coverUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
             "websiteUrl": "https://lir.anticvalley.com.tr",
             "screenshots": [
                 "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir1.png"

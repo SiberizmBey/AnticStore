@@ -266,12 +266,17 @@ async function buildGitHubRepoBundle(owner: string, repo: string) {
       ? ((repoInfo.owner as Record<string, unknown>).avatar_url as string)
       : null);
 
+  const coverUrl =
+    (typeof anticManifest?.coverUrl === 'string' ? anticManifest.coverUrl : null) ||
+    (typeof anticManifest?.bannerUrl === 'string' ? anticManifest.bannerUrl : null);
+
   return {
     repo: repoInfo,
     releases: Array.isArray(releases) ? releases : [],
     packageJson,
     anticManifest,
     iconUrl,
+    coverUrl,
   };
 }
 
@@ -285,20 +290,6 @@ async function createServer() {
 
   app.get('/api/catalog/official', async (req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    const localPath = path.join(__dirname, 'catalog.json');
-    if (fs.existsSync(localPath)) {
-      try {
-        const raw = fs.readFileSync(localPath, 'utf8');
-        const parsed = JSON.parse(raw) as Record<string, unknown>;
-        if (parsed && Array.isArray(parsed.apps)) {
-          res.json({ ...parsed, _source: 'local-catalog' });
-          return;
-        }
-      } catch {
-        // Fall through to remote candidates if local JSON is invalid
-      }
-    }
-
     const cacheKey = 'official:SiberizmBey/AnticStore';
     const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
     const cached = forceRefresh ? null : getCached(cacheKey);
@@ -335,6 +326,20 @@ async function createServer() {
         }
       } catch {
         // Try next candidate
+      }
+    }
+
+    const localPath = path.join(__dirname, 'catalog.json');
+    if (fs.existsSync(localPath)) {
+      try {
+        const raw = fs.readFileSync(localPath, 'utf8');
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (parsed && Array.isArray(parsed.apps)) {
+          res.json({ ...parsed, _source: 'local-catalog' });
+          return;
+        }
+      } catch {
+        // Ignore invalid local JSON
       }
     }
 
@@ -702,6 +707,10 @@ async function createServer() {
   });
 
   if (!IS_PRODUCTION) {
+    const publicDir = path.join(__dirname, 'public');
+    if (fs.existsSync(publicDir)) {
+      app.use(express.static(publicDir));
+    }
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },

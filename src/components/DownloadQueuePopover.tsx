@@ -6,9 +6,13 @@ import { formatBytes, formatSpeed } from '../utils/semver';
 
 interface DownloadQueuePopoverProps {
   onSelectAppById?: (appId: string) => void;
+  placement?: 'top' | 'bottom';
 }
 
-export function DownloadQueuePopover({ onSelectAppById }: DownloadQueuePopoverProps) {
+export function DownloadQueuePopover({
+  onSelectAppById,
+  placement = 'bottom',
+}: DownloadQueuePopoverProps) {
   const { apps, tasks, pauseTask, resumeTask, cancelTask } = useStore();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -92,13 +96,17 @@ export function DownloadQueuePopover({ onSelectAppById }: DownloadQueuePopoverPr
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 8, scale: 0.97 }}
+            initial={{ opacity: 0, y: placement === 'top' ? 10 : -8, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+            exit={{ opacity: 0, y: placement === 'top' ? 10 : -6, scale: 0.97 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
             role="dialog"
             aria-label="İndirme Kuyruğu"
-            className="absolute right-0 top-10 w-[330px] sm:w-[370px] rounded-3xl bg-modal border border-subtle shadow-2xl overflow-hidden z-50"
+            className={`${
+              placement === 'top'
+                ? 'fixed bottom-[4.75rem] right-4 sm:absolute sm:bottom-[calc(100%+14px)] sm:right-0 sm:top-auto'
+                : 'absolute right-0 top-10'
+            } w-[calc(100vw-2rem)] sm:w-[370px] rounded-3xl bg-modal border border-subtle shadow-2xl overflow-hidden z-50`}
           >
             <div className="px-4 py-3 border-b border-subtle flex items-center justify-between gap-2 bg-card/70">
               <div className="flex items-center gap-2 min-w-0">
@@ -135,7 +143,7 @@ export function DownloadQueuePopover({ onSelectAppById }: DownloadQueuePopoverPr
                   <div
                     key={task.appId}
                     onClick={() => {
-                      if (onSelectAppById) {
+                      if (onSelectAppById && !task.appId.startsWith('prereq:')) {
                         onSelectAppById(task.appId);
                         setIsOpen(false);
                       }

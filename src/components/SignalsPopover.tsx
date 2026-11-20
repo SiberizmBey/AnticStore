@@ -6,9 +6,10 @@ import type { SignalEntry } from '../types';
 
 interface SignalsPopoverProps {
   onSelectAppById?: (appId: string) => void;
+  inline?: boolean;
 }
 
-export function SignalsPopover({ onSelectAppById }: SignalsPopoverProps) {
+export function SignalsPopover({ onSelectAppById, inline = false }: SignalsPopoverProps) {
   const {
     signalsFeed,
     isSyncingSignals,
@@ -87,7 +88,11 @@ export function SignalsPopover({ onSelectAppById }: SignalsPopoverProps) {
   return (
     <div
       ref={containerRef}
-      className="koza-window-interactive fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center"
+      className={
+        inline
+          ? 'relative flex items-center'
+          : 'koza-window-interactive fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center'
+      }
     >
       <AnimatePresence>
         {isOpen && (

@@ -28,6 +28,7 @@ import { motion } from 'motion/react';
 import { useStore } from '../context/StoreContext';
 import { CatalogAppRow } from '../components/CatalogAppRow';
 import { AppIcon } from '../components/AppIcon';
+import { AppCover } from '../components/AppCover';
 import { GitHubTokenCard } from '../components/GitHubTokenCard';
 import {
   checkInstalledMirrorStatus,
@@ -354,6 +355,17 @@ export function StoreView({ onSelectApp }: StoreViewProps) {
               : 'border-subtle hover:border-hover'
           }`}
         >
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-3xl overflow-hidden">
+            <AppCover
+              name={latestUpdatedApp.name}
+              coverUrl={latestUpdatedApp.coverUrl}
+              screenshots={latestUpdatedApp.screenshots}
+              iconUrl={latestUpdatedApp.iconUrl}
+              variant="spotlight"
+              grayscale={!spotlightDownloadable}
+              className="w-full h-full"
+            />
+          </div>
           {spotlightIsUnofficial && (
             <div
               aria-hidden="true"
