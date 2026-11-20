@@ -94,7 +94,7 @@
                 "minRamGb": "",
                 "minDiskMb": "",
                 "runtimes": ["WebView2"],
-                "notes": ""
+                "notes": "Rekabetçi oyunlarda Yonga kullanımı önerilmez. Yonga, dll inject yöntemi ile çalıştığı için bazı oyunlar tarafından hile olarak algılanabilir ve banlanmanıza sebep olabilir."
             },
             "permissions": ["network", "filesystem", "notifications"],
             "tags": ["Oyun", "Windows"]
