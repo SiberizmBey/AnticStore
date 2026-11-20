@@ -5,9 +5,9 @@
     "updatedAt": "2026-11-18T17:00:00Z",
     "catalogs": [
         {
-            "id": "magaza",
-            "label": "Mağaza",
-            "description": "Antic Valley resmi uygulama mağazası",
+            "id": "guvenlik",
+            "label": "Güvenlik",
+            "description": "Güvenliğiniz için...",
             "order": 1
         },
         {
@@ -29,7 +29,7 @@
             "name": "Koru",
             "developer": "SiberizmBey",
             "category": "Mağaza",
-            "catalog": "magaza",
+            "catalog": "güvenlik",
             "summary": "Antic Valley resmi uygulama mağazası",
             "description": "Antic Valley'in uygulamarını keşfetmek, indirmek ve güncellemek için resmi uygulama mağazası.",
             "iconUrl": "./assets/img/icon.png",
@@ -64,6 +64,42 @@
                 "autostart"
             ],
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
+        },
+        {
+            "id": "com.anticvalley.koza",
+            "name": "Koza",
+            "developer": "SiberizmBey",
+            "category": "Güvenlik",
+            "catalog": "guvenlik",
+            "summary": "Şifre yöneticisinin ötesinde...",
+            "description": "Koza sadece şifre yöneticisinden fazlasıdır. Kurtarma mail, telefon, kodlarınız ve 2FA uygulama bilgilerinizi güvenle saklayabilir ve yönetebilirsiniz. Koza, verilerinizi şifreler ve sadece sizin erişiminize izin verir.",
+            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/koza.png",
+            "coverUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/koza.png",
+            "websiteUrl": "https://koza.anticvalley.com.tr",
+            "screenshots": [
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza1.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza2.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/koza3.png"
+            ],
+            "githubRepo": "SiberizmBey/Kozake",
+            "featured": true,
+            "new": true,
+            "downloadable": false,
+            "announcedAt": "11.01.2026",
+            "releaseDate": "Duyurulmadı",
+            "upcomingUpdateDate": "18.11.2026",
+            "comingSoon": true,
+            "requirements": {
+                "os": ["windows"],
+                "minOsVersion": "Windows 10 / 11 (64-bit)",
+                "arch": ["x64"],
+                "minRamGb": "",
+                "minDiskMb": "",
+                "runtimes": ["WebView2"],
+                "notes": ""
+            },
+            "permissions": ["network", "notifications"],
+            "tags": ["Güvenlik", "Açık Kaynak", "Windows"]
         },
         {
             "id": "com.anticvalley.yonga",
