@@ -106,7 +106,7 @@
             "name": "Lir",
             "developer": "SiberizmBey",
             "category": "Ses & Medya",
-            "catalog": "ses",
+            "catalog": "eglence",
             "summary": "Soundpad muadili açık kaynaklı ses paneli",
             "description": "Oyunlar, yayınlar ve sesli sohbetler için düşük gecikmeli, Discord RPC destekli modern ses tahtası ve ses yönetimi uygulaması.",
             "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
