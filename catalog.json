@@ -11,9 +11,9 @@
             "order": 1
         },
         {
-            "id": "ses",
-            "label": "Ses Yazılımı",
-            "description": "Ses paneli ve ses yönetimi uygulamaları",
+            "id": "eglence",
+            "label": "Eğlence",
+            "description": "Oyun ve eğlence uygulamaları",
             "order": 2
         },
         {
@@ -63,6 +63,41 @@
                 "autostart"
             ],
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
+        },
+        {
+            "id": "com.anticvalley.yonga",
+            "name": "Yonga",
+            "developer": "SiberizmBey",
+            "category": "Eğlence",
+            "catalog": "eglence",
+            "summary": "Oyunlarınıza DLSS getiren optimizasyon ve performans aracı",
+            "description": "Antic Valley'in uygulamarını keşfetmek, indirmek ve güncellemek için resmi uygulama mağazası.",
+            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/YongaRelease/refs/heads/main/program_logo.png",
+            "websiteUrl": "https://yonga.anticvalley.com.tr",
+            "screenshots": [
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/yonga1.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/yonga2.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/yonga3.png"
+            ],
+            "githubRepo": "SiberizmBey/YongaRelease",
+            "featured": true,
+            "new": true,
+            "downloadable": true,
+            "announcedAt": "08.12.2026",
+            "releaseDate": "20.11.2026",
+            "upcomingUpdateDate": "18.11.2026",
+            "comingSoon": false,
+            "requirements": {
+                "os": ["windows"],
+                "minOsVersion": "Windows 10 / 11 (64-bit)",
+                "arch": ["x64"],
+                "minRamGb": "",
+                "minDiskMb": "",
+                "runtimes": ["WebView2"],
+                "notes": ""
+            },
+            "permissions": ["network", "filesystem", "notifications"],
+            "tags": ["Oyun", "Windows"]
         },
         {
             "id": "com.anticvalley.lir",
