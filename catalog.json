@@ -120,11 +120,11 @@
             "githubRepo": "SiberizmBey",
             "featured": true,
             "new": true,
-            "downloadable": false,
+            "downloadable": true,
             "announcedAt": "08.12.2026",
-            "releaseDate": "Duyurulmadı",
+            "releaseDate": "21.11.2026",
             "upcomingUpdateDate": "18.11.2026",
-            "comingSoon": true,
+            "comingSoon": false,
             "requirements": {
                 "os": ["windows"],
                 "minOsVersion": "Windows 10 / 11 (64-bit)",
@@ -149,7 +149,14 @@
             "coverUrl": "https://raw.githubusercontent.com/SiberizmBey/Lir/main/public/assets/img/icon.png",
             "websiteUrl": "https://lir.anticvalley.com.tr",
             "screenshots": [
-                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir1.png"
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir1.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir2.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir3.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir4.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir5.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir6.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir7.png",
+                "https://raw.githubusercontent.com/SiberizmBey/AnticStore/main/public/screenshots/lir8.png"
             ],
             "githubRepo": "SiberizmBey/Lir",
             "featured": true,
