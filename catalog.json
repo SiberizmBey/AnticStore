@@ -66,6 +66,42 @@
             "tags": ["Mağaza", "Açık Kaynak", "Windows"]
         },
         {
+            "id": "com.anticvalley.koza",
+            "name": "Koza",
+            "developer": "SiberizmBey",
+            "category": "Güvenlik",
+            "catalog": "guvenlik",
+            "summary": "Şifre yöneticisinin ötesinde...",
+            "description": "Koza sadece şifre yöneticisinden fazlasıdır. Kurtarma mail, telefon, kodlarınız ve 2FA uygulama bilgilerinizi güvenle saklayabilir ve yönetebilirsiniz. Koza, verilerinizi şifreler ve sadece sizin erişiminize izin verir.",
+            "iconUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/koza.png",
+            "coverUrl": "https://raw.githubusercontent.com/SiberizmBey/labs.anticvalley.com.tr/main/public/assets/img/koza.png",
+            "websiteUrl": "https://koza.anticvalley.com.tr",
+            "screenshots": [
+                "https://raw.githubusercontent.com/SiberizmBey/Koru/main/public/screenshots/koza1.png",
+                "https://raw.githubusercontent.com/SiberizmBey/Koru/main/public/screenshots/koza2.png",
+                "https://raw.githubusercontent.com/SiberizmBey/Koru/main/public/screenshots/koza3.png"
+            ],
+            "githubRepo": "SiberizmBey",
+            "featured": true,
+            "new": true,
+            "downloadable": false,
+            "announcedAt": "11.01.2026",
+            "releaseDate": "Duyurulmadı",
+            "upcomingUpdateDate": "18.11.2026",
+            "comingSoon": true,
+            "requirements": {
+                "os": ["windows"],
+                "minOsVersion": "Windows 10 / 11 (64-bit)",
+                "arch": ["x64"],
+                "minRamGb": "",
+                "minDiskMb": "",
+                "runtimes": ["WebView2"],
+                "notes": ""
+            },
+            "permissions": ["network", "notifications"],
+            "tags": ["Güvenlik", "Açık Kaynak", "Windows"]
+        },
+        {
             "id": "com.anticvalley.yonga",
             "name": "Yonga",
             "developer": "SiberizmBey",
